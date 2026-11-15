@@ -1089,6 +1089,15 @@ export class Aether8AudioEngine {
    */
   public triggerBeatSynthVoice(voiceKey: BeatVoiceKey, time?: number): void {
     const ctx = this.ensureInitialized();
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+    if (!this.isPlaying && this.masterGain) {
+      const now = ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.patchRef.masterVol, now);
+      this.masterGain.gain.setTargetAtTime(0.0, now + 0.35, 0.05);
+    }
     if (!this.directChannels) return;
     const t = time ?? ctx.currentTime;
     const cfg = this.patchRef.beatVoices[voiceKey];
@@ -1218,6 +1227,15 @@ export class Aether8AudioEngine {
    */
   public triggerVactrolPing(time?: number): void {
     const ctx = this.ensureInitialized();
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+    if (!this.isPlaying && this.masterGain) {
+      const now = ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.patchRef.masterVol, now);
+      this.masterGain.gain.setTargetAtTime(0.0, now + 0.65, 0.05);
+    }
     if (!this.directChannels) return;
     const t = time ?? ctx.currentTime;
     const prm = this.patchRef.params.pulse;

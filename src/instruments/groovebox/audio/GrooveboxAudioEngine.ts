@@ -924,6 +924,17 @@ export class GrooveboxAudioEngine {
     durationSec: number = 0.25
   ): void {
     const ctx = this.ensureInitialized();
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+    // Temporarily open masterGain if sequencer is currently stopped so audition/hit sounds can be heard
+    if (!this.isPlaying && this.masterGain) {
+      const now = ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.projectRef.globalFx.masterVolume, now);
+      // Gently ramp back down to 0 after the hit audition finishes
+      this.masterGain.gain.setTargetAtTime(0.0, now + durationSec + 0.1, 0.05);
+    }
     this.triggerTrackNote(
       trackIndex,
       { midiNote, velocity, durationSteps: 1, glide: false },
