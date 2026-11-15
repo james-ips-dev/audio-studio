@@ -179,12 +179,12 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
   }, [activeFromJack]);
 
   // Transport Play / Stop
-  const handleTogglePlay = useCallback(() => {
+  const handleTogglePlay = useCallback(async () => {
     if (isPlaying) {
       engine.stop();
       setIsPlaying(false);
     } else {
-      engine.start();
+      await engine.start();
       setIsPlaying(true);
     }
   }, [engine, isPlaying]);

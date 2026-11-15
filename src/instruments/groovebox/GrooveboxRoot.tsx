@@ -274,12 +274,12 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
     return () => midiMgr.dispose();
   }, [engine]);
 
-  const handleTogglePlay = useCallback(() => {
+  const handleTogglePlay = useCallback(async () => {
     if (isPlaying) {
       engine.stop();
       setIsPlaying(false);
     } else {
-      engine.start();
+      await engine.start();
       setIsPlaying(true);
     }
   }, [engine, isPlaying]);

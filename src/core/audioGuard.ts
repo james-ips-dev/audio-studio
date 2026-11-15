@@ -41,14 +41,15 @@ class AudioIsolationGuard {
 
     let audioCtx: AudioContext;
     try {
+      // Let browser negotiate native sample rate (e.g. 44.1kHz on Chromebooks, 48kHz on PCs/Macs)
+      // unless an explicit sampleRate option is requested.
       audioCtx = new AudioCtxConstructor({
         latencyHint: 'interactive',
-        sampleRate: 48000,
         ...options,
       });
     } catch {
-      // Fallback if hardware/browser rejects explicit sampleRate
-      audioCtx = new AudioCtxConstructor({ latencyHint: 'interactive' });
+      // Fallback if options are rejected
+      audioCtx = new AudioCtxConstructor();
     }
 
     const masterGain = audioCtx.createGain();
@@ -68,6 +69,15 @@ class AudioIsolationGuard {
       }
       this.notifyListeners();
     });
+
+    // Global first-interaction unlocker for strict browsers (ChromeOS/Chromebooks, Safari, etc.)
+    const unlock = () => {
+      if (audioCtx.state === 'suspended') {
+        void audioCtx.resume();
+      }
+    };
+    window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    window.addEventListener('keydown', unlock, { once: true, capture: true });
 
     this.notifyListeners();
     return { audioCtx, masterGain };

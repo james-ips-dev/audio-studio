@@ -550,8 +550,15 @@ export class GrooveboxAudioEngine {
     }
   }
 
-  public start(): void {
+  public async start(): Promise<void> {
     const ctx = this.ensureInitialized();
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        // Handled on subsequent user gesture
+      }
+    }
     if (this.isPlaying) return;
 
     this.isPlaying = true;
