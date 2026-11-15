@@ -430,51 +430,251 @@ export function createTrackDefaultSynth(trackIndex: number): ProSynthConfig {
   };
 }
 
+export interface TrackBankPresetItem {
+  name: string;
+  modeTag: 'beginner' | 'pro';
+  overrides: Partial<ProSynthConfig['beginnerMacros']>;
+  osc1Wave?: ProSynthConfig['osc1']['wave'];
+  osc2Wave?: ProSynthConfig['osc2']['wave'];
+  filterType?: ProSynthConfig['filter']['type'];
+  sustain?: number;
+  glideTime?: number;
+}
+
 /**
- * Preset bank per track so the `< >` Preset Browser in Tab 1 can cycle sounds cleanly.
+ * 20 Presets per Track Synth Engine (10 Play Mode + 10 Studio Pro Mode = 20 per track, 160 total).
  */
-export const TRACK_PRESET_BANKS: Record<number, { name: string; overrides: Partial<ProSynthConfig['beginnerMacros']> }[]> = {
+export const TRACK_PRESET_BANKS: Record<number, TrackBankPresetItem[]> = {
+  // Track 0: KICK (20 Presets)
   0: [
-    { name: '808 Sub Boom', overrides: { cutoff: 0.28, pitchEnv: 0.78, ampDecay: 0.45, fmDirt: 0.2 } },
-    { name: '909 Punch Kick', overrides: { cutoff: 0.48, pitchEnv: 0.85, ampDecay: 0.28, fmDirt: 0.38 } },
-    { name: 'Laser Gabber Kick', overrides: { cutoff: 0.72, pitchEnv: 0.95, ampDecay: 0.35, fmDirt: 0.75 } },
+    // 10 Play Mode Presets
+    { name: '808 Sub Boom', modeTag: 'beginner', overrides: { cutoff: 0.28, pitchEnv: 0.78, ampDecay: 0.48, fmDirt: 0.18 } },
+    { name: '909 Punch Kick', modeTag: 'beginner', overrides: { cutoff: 0.48, pitchEnv: 0.85, ampDecay: 0.28, fmDirt: 0.35 } },
+    { name: 'Laser Arcade Kick', modeTag: 'beginner', overrides: { cutoff: 0.72, pitchEnv: 0.95, ampDecay: 0.32, fmDirt: 0.65 } },
+    { name: 'Pillow Soft Sub', modeTag: 'beginner', overrides: { cutoff: 0.2, pitchEnv: 0.52, ampDecay: 0.55, fmDirt: 0.08 } },
+    { name: 'Robot Stomp Kick', modeTag: 'beginner', overrides: { cutoff: 0.58, pitchEnv: 0.82, ampDecay: 0.3, fmDirt: 0.58 } },
+    { name: 'Bouncy House Kick', modeTag: 'beginner', overrides: { cutoff: 0.42, pitchEnv: 0.74, ampDecay: 0.34, fmDirt: 0.25 } },
+    { name: 'Retro CR-78 Thud', modeTag: 'beginner', overrides: { cutoff: 0.32, pitchEnv: 0.6, ampDecay: 0.22, fmDirt: 0.15 } },
+    { name: 'Neon Synthwave Kick', modeTag: 'beginner', overrides: { cutoff: 0.52, pitchEnv: 0.8, ampDecay: 0.4, fmDirt: 0.3 } },
+    { name: 'Starlight Lo-Fi Kick', modeTag: 'beginner', overrides: { cutoff: 0.24, pitchEnv: 0.64, ampDecay: 0.26, fmDirt: 0.22 } },
+    { name: 'Mega Boss Impact', modeTag: 'beginner', overrides: { cutoff: 0.66, pitchEnv: 0.92, ampDecay: 0.62, fmDirt: 0.72 } },
+    // 10 Studio Pro Presets
+    { name: 'Berghain Warehouse Sub', modeTag: 'pro', overrides: { cutoff: 0.38, pitchEnv: 0.86, ampDecay: 0.54, fmDirt: 0.44, resonance: 0.35 } },
+    { name: 'Hard Industrial Gabber', modeTag: 'pro', overrides: { cutoff: 0.82, pitchEnv: 0.96, ampDecay: 0.46, fmDirt: 0.88, resonance: 0.5 } },
+    { name: 'Dub Techno Deep Thump', modeTag: 'pro', overrides: { cutoff: 0.22, pitchEnv: 0.68, ampDecay: 0.5, fmDirt: 0.12, resonance: 0.28 } },
+    { name: 'FM Transient Click Kick', modeTag: 'pro', overrides: { cutoff: 0.62, pitchEnv: 0.9, ampDecay: 0.27, fmDirt: 0.64, resonance: 0.2 } },
+    { name: 'Modular Vactrol Kick', modeTag: 'pro', overrides: { cutoff: 0.34, pitchEnv: 0.76, ampDecay: 0.38, fmDirt: 0.28, resonance: 0.42 } },
+    { name: 'Acid Rave Overdrive', modeTag: 'pro', overrides: { cutoff: 0.7, pitchEnv: 0.88, ampDecay: 0.42, fmDirt: 0.78, resonance: 0.48 } },
+    { name: 'Minimal Micro-Click', modeTag: 'pro', overrides: { cutoff: 0.46, pitchEnv: 0.72, ampDecay: 0.19, fmDirt: 0.32, resonance: 0.15 } },
+    { name: 'Sustained 808 Bass Kick', modeTag: 'pro', overrides: { cutoff: 0.3, pitchEnv: 0.7, ampDecay: 0.85, fmDirt: 0.24 }, sustain: 0.65 },
+    { name: 'Broken Beat Saturator', modeTag: 'pro', overrides: { cutoff: 0.56, pitchEnv: 0.81, ampDecay: 0.33, fmDirt: 0.54, resonance: 0.36 } },
+    { name: 'Subharmonic Earthquake', modeTag: 'pro', overrides: { cutoff: 0.26, pitchEnv: 0.84, ampDecay: 0.72, fmDirt: 0.36 }, sustain: 0.5 },
   ],
+  // Track 1: SNARE (20 Presets)
   1: [
-    { name: 'Crisp Analog Snare', overrides: { cutoff: 0.68, pitchEnv: 0.35, ampDecay: 0.22, fmDirt: 0.25 } },
-    { name: 'Tight Rim Clap', overrides: { cutoff: 0.82, pitchEnv: 0.5, ampDecay: 0.14, fmDirt: 0.45 } },
-    { name: 'Lo-Fi Crunch Snare', overrides: { cutoff: 0.45, pitchEnv: 0.2, ampDecay: 0.3, fmDirt: 0.68 } },
+    // 10 Play Mode Presets
+    { name: 'Crisp Analog Snare', modeTag: 'beginner', overrides: { cutoff: 0.68, pitchEnv: 0.35, ampDecay: 0.22, fmDirt: 0.25 } },
+    { name: 'Tight Rim Clap', modeTag: 'beginner', overrides: { cutoff: 0.82, pitchEnv: 0.5, ampDecay: 0.14, fmDirt: 0.45 } },
+    { name: 'Lo-Fi Crunch Snare', modeTag: 'beginner', overrides: { cutoff: 0.45, pitchEnv: 0.2, ampDecay: 0.3, fmDirt: 0.68 } },
+    { name: '8-Bit Noise Snap', modeTag: 'beginner', overrides: { cutoff: 0.78, pitchEnv: 0.4, ampDecay: 0.18, fmDirt: 0.6 }, osc1Wave: 'square' },
+    { name: '808 Crispy Clap', modeTag: 'beginner', overrides: { cutoff: 0.74, pitchEnv: 0.28, ampDecay: 0.26, fmDirt: 0.32 } },
+    { name: '909 Arena Snare', modeTag: 'beginner', overrides: { cutoff: 0.7, pitchEnv: 0.48, ampDecay: 0.32, fmDirt: 0.38 } },
+    { name: 'Cosmic Laser Snare', modeTag: 'beginner', overrides: { cutoff: 0.85, pitchEnv: 0.75, ampDecay: 0.25, fmDirt: 0.52 } },
+    { name: 'Warm Bedroom Brush', modeTag: 'beginner', overrides: { cutoff: 0.38, pitchEnv: 0.12, ampDecay: 0.28, fmDirt: 0.12 } },
+    { name: 'Electro Funk Whip', modeTag: 'beginner', overrides: { cutoff: 0.8, pitchEnv: 0.62, ampDecay: 0.2, fmDirt: 0.48 } },
+    { name: 'Candy Pop Finger Snap', modeTag: 'beginner', overrides: { cutoff: 0.86, pitchEnv: 0.55, ampDecay: 0.11, fmDirt: 0.22 } },
+    // 10 Studio Pro Presets
+    { name: 'Dub Rimshot Echo Seed', modeTag: 'pro', overrides: { cutoff: 0.64, resonance: 0.55, pitchEnv: 0.58, ampDecay: 0.16, fmDirt: 0.42 }, filterType: 'bp12' },
+    { name: 'Industrial Metal Pipe', modeTag: 'pro', overrides: { cutoff: 0.84, resonance: 0.68, pitchEnv: 0.45, ampDecay: 0.38, fmDirt: 0.85 } },
+    { name: 'Jungle Breakbeat Crack', modeTag: 'pro', overrides: { cutoff: 0.76, resonance: 0.4, pitchEnv: 0.52, ampDecay: 0.19, fmDirt: 0.5 } },
+    { name: 'Synthwave Gated Tail', modeTag: 'pro', overrides: { cutoff: 0.62, resonance: 0.25, pitchEnv: 0.35, ampDecay: 0.55, fmDirt: 0.34 } },
+    { name: 'Modular White Burst', modeTag: 'pro', overrides: { cutoff: 0.9, resonance: 0.48, pitchEnv: 0.15, ampDecay: 0.24, fmDirt: 0.62 }, filterType: 'hp12' },
+    { name: 'Detroit Clap Stack', modeTag: 'pro', overrides: { cutoff: 0.72, resonance: 0.35, pitchEnv: 0.3, ampDecay: 0.31, fmDirt: 0.44 } },
+    { name: 'Glitch Micro-Snare', modeTag: 'pro', overrides: { cutoff: 0.88, resonance: 0.6, pitchEnv: 0.7, ampDecay: 0.08, fmDirt: 0.72 } },
+    { name: 'Deep Wood Rim Knock', modeTag: 'pro', overrides: { cutoff: 0.48, resonance: 0.64, pitchEnv: 0.65, ampDecay: 0.15, fmDirt: 0.28 } },
+    { name: 'Bitcrushed Arcade Hit', modeTag: 'pro', overrides: { cutoff: 0.66, resonance: 0.5, pitchEnv: 0.42, ampDecay: 0.27, fmDirt: 0.9 } },
+    { name: 'Resonant Filter Sweep Snare', modeTag: 'pro', overrides: { cutoff: 0.54, resonance: 0.78, pitchEnv: 0.8, ampDecay: 0.42, fmDirt: 0.46 } },
   ],
+  // Track 2: HI-HAT (20 Presets)
   2: [
-    { name: '909 Closed Hat', overrides: { cutoff: 0.85, resonance: 0.3, ampDecay: 0.09, fmDirt: 0.4 } },
-    { name: 'Metallic Shimmer Hat', overrides: { cutoff: 0.92, resonance: 0.55, ampDecay: 0.24, fmDirt: 0.65 } },
-    { name: 'Dusty Vinyl Tick', overrides: { cutoff: 0.6, resonance: 0.2, ampDecay: 0.06, fmDirt: 0.15 } },
+    // 10 Play Mode Presets
+    { name: '909 Closed Hat', modeTag: 'beginner', overrides: { cutoff: 0.85, resonance: 0.3, ampDecay: 0.09, fmDirt: 0.4 } },
+    { name: 'Metallic Shimmer Hat', modeTag: 'beginner', overrides: { cutoff: 0.92, resonance: 0.55, ampDecay: 0.24, fmDirt: 0.65 } },
+    { name: 'Dusty Vinyl Tick', modeTag: 'beginner', overrides: { cutoff: 0.6, resonance: 0.2, ampDecay: 0.06, fmDirt: 0.15 } },
+    { name: '808 Maraca Shaker', modeTag: 'beginner', overrides: { cutoff: 0.78, resonance: 0.25, ampDecay: 0.12, fmDirt: 0.22 } },
+    { name: 'Open Sizzle Cymbal', modeTag: 'beginner', overrides: { cutoff: 0.88, resonance: 0.42, ampDecay: 0.48, fmDirt: 0.55 } },
+    { name: 'Chiptune White Tick', modeTag: 'beginner', overrides: { cutoff: 0.94, resonance: 0.18, ampDecay: 0.05, fmDirt: 0.3 } },
+    { name: 'Robot Ratchet Hat', modeTag: 'beginner', overrides: { cutoff: 0.82, resonance: 0.6, ampDecay: 0.11, fmDirt: 0.72 } },
+    { name: 'Soft Silk Shaker', modeTag: 'beginner', overrides: { cutoff: 0.52, resonance: 0.15, ampDecay: 0.16, fmDirt: 0.1 } },
+    { name: 'Bright Disco Open Hat', modeTag: 'beginner', overrides: { cutoff: 0.9, resonance: 0.38, ampDecay: 0.36, fmDirt: 0.45 } },
+    { name: 'Starlight Clock Tick', modeTag: 'beginner', overrides: { cutoff: 0.68, resonance: 0.45, ampDecay: 0.07, fmDirt: 0.28 } },
+    // 10 Studio Pro Presets
+    { name: '6-Osc Metallic Alloy Hat', modeTag: 'pro', overrides: { cutoff: 0.89, resonance: 0.62, ampDecay: 0.14, fmDirt: 0.78 }, filterType: 'hp12' },
+    { name: 'Dub Filtered Noise Hat', modeTag: 'pro', overrides: { cutoff: 0.64, resonance: 0.72, ampDecay: 0.18, fmDirt: 0.35 }, filterType: 'bp12' },
+    { name: 'Minimal Pinpoint Click', modeTag: 'pro', overrides: { cutoff: 0.96, resonance: 0.4, ampDecay: 0.04, fmDirt: 0.5 } },
+    { name: 'Warehouse Ride Bell', modeTag: 'pro', overrides: { cutoff: 0.84, resonance: 0.68, ampDecay: 0.58, fmDirt: 0.82 } },
+    { name: 'Tape Saturated Closed Hat', modeTag: 'pro', overrides: { cutoff: 0.72, resonance: 0.32, ampDecay: 0.1, fmDirt: 0.64 } },
+    { name: 'FM Ring-Mod Cymbal', modeTag: 'pro', overrides: { cutoff: 0.86, resonance: 0.58, ampDecay: 0.42, fmDirt: 0.92 } },
+    { name: 'Crisp Trap Fast Hat', modeTag: 'pro', overrides: { cutoff: 0.93, resonance: 0.35, ampDecay: 0.06, fmDirt: 0.48 } },
+    { name: 'Analog Bandpass Cabasa', modeTag: 'pro', overrides: { cutoff: 0.74, resonance: 0.52, ampDecay: 0.15, fmDirt: 0.38 }, filterType: 'bp12' },
+    { name: 'Dark Industrial Steam Hat', modeTag: 'pro', overrides: { cutoff: 0.58, resonance: 0.66, ampDecay: 0.28, fmDirt: 0.74 } },
+    { name: 'Sustained Shimmer Wash', modeTag: 'pro', overrides: { cutoff: 0.88, resonance: 0.5, ampDecay: 0.75, fmDirt: 0.6 }, sustain: 0.55 },
   ],
+  // Track 3: PERC (20 Presets)
   3: [
-    { name: 'FM Wood Perc', overrides: { cutoff: 0.58, resonance: 0.4, fmDirt: 0.55, pitchEnv: 0.45 } },
-    { name: 'Space Tom Zap', overrides: { cutoff: 0.5, resonance: 0.6, fmDirt: 0.3, pitchEnv: 0.8 } },
-    { name: 'Robot Cowbell', overrides: { cutoff: 0.76, resonance: 0.5, fmDirt: 0.78, pitchEnv: 0.15 } },
+    // 10 Play Mode Presets
+    { name: 'FM Wood Perc', modeTag: 'beginner', overrides: { cutoff: 0.58, resonance: 0.4, fmDirt: 0.55, pitchEnv: 0.45, ampDecay: 0.18 } },
+    { name: 'Space Tom Zap', modeTag: 'beginner', overrides: { cutoff: 0.5, resonance: 0.6, fmDirt: 0.3, pitchEnv: 0.8, ampDecay: 0.28 } },
+    { name: 'Robot Cowbell', modeTag: 'beginner', overrides: { cutoff: 0.76, resonance: 0.5, fmDirt: 0.78, pitchEnv: 0.15, ampDecay: 0.24 } },
+    { name: '808 Conga Slap', modeTag: 'beginner', overrides: { cutoff: 0.46, resonance: 0.35, fmDirt: 0.2, pitchEnv: 0.55, ampDecay: 0.22 } },
+    { name: 'Arcade Coin Blip', modeTag: 'beginner', overrides: { cutoff: 0.88, resonance: 0.45, fmDirt: 0.65, pitchEnv: 0.7, ampDecay: 0.16 } },
+    { name: 'Jungle Log Drum', modeTag: 'beginner', overrides: { cutoff: 0.42, resonance: 0.52, fmDirt: 0.48, pitchEnv: 0.35, ampDecay: 0.2 } },
+    { name: 'Disco Synth Tom', modeTag: 'beginner', overrides: { cutoff: 0.54, resonance: 0.42, fmDirt: 0.25, pitchEnv: 0.88, ampDecay: 0.34 } },
+    { name: 'Water Drop Pluck', modeTag: 'beginner', overrides: { cutoff: 0.64, resonance: 0.75, fmDirt: 0.15, pitchEnv: 0.65, ampDecay: 0.15 } },
+    { name: 'Triangle Ting Bell', modeTag: 'beginner', overrides: { cutoff: 0.92, resonance: 0.6, fmDirt: 0.82, pitchEnv: 0.1, ampDecay: 0.42 } },
+    { name: 'Bongo Groove Hit', modeTag: 'beginner', overrides: { cutoff: 0.52, resonance: 0.38, fmDirt: 0.28, pitchEnv: 0.5, ampDecay: 0.17 } },
+    // 10 Studio Pro Presets
+    { name: 'Buchla Bongo LPG Ping', modeTag: 'pro', overrides: { cutoff: 0.48, resonance: 0.68, fmDirt: 0.62, pitchEnv: 0.58, ampDecay: 0.21 } },
+    { name: 'Dub Clave Resonator', modeTag: 'pro', overrides: { cutoff: 0.72, resonance: 0.74, fmDirt: 0.54, pitchEnv: 0.25, ampDecay: 0.14 }, filterType: 'bp12' },
+    { name: 'Metallic FM Anvil', modeTag: 'pro', overrides: { cutoff: 0.82, resonance: 0.58, fmDirt: 0.92, pitchEnv: 0.32, ampDecay: 0.36 } },
+    { name: 'Polyrhythmic Kalimba', modeTag: 'pro', overrides: { cutoff: 0.66, resonance: 0.44, fmDirt: 0.46, pitchEnv: 0.2, ampDecay: 0.29 } },
+    { name: 'Modular Spring Zap', modeTag: 'pro', overrides: { cutoff: 0.78, resonance: 0.82, fmDirt: 0.7, pitchEnv: 0.92, ampDecay: 0.32 } },
+    { name: 'Deep Tribal Sub Tom', modeTag: 'pro', overrides: { cutoff: 0.34, resonance: 0.48, fmDirt: 0.32, pitchEnv: 0.74, ampDecay: 0.44 } },
+    { name: 'IDM Micro-Glitch Perc', modeTag: 'pro', overrides: { cutoff: 0.9, resonance: 0.65, fmDirt: 0.86, pitchEnv: 0.85, ampDecay: 0.08 } },
+    { name: 'Hollow Bamboo Marimba', modeTag: 'pro', overrides: { cutoff: 0.56, resonance: 0.55, fmDirt: 0.38, pitchEnv: 0.18, ampDecay: 0.23 } },
+    { name: 'Acid Rim Ping', modeTag: 'pro', overrides: { cutoff: 0.68, resonance: 0.86, fmDirt: 0.52, pitchEnv: 0.62, ampDecay: 0.19 } },
+    { name: 'Sustained Drone Bell', modeTag: 'pro', overrides: { cutoff: 0.74, resonance: 0.5, fmDirt: 0.68, pitchEnv: 0.12, ampDecay: 0.78 }, sustain: 0.6 },
   ],
+  // Track 4: BASS (20 Presets)
   4: [
-    { name: '303 Acid Squelch', overrides: { cutoff: 0.52, resonance: 0.72, fmDirt: 0.35, ampDecay: 0.26 } },
-    { name: 'Reese Sub Bass', overrides: { cutoff: 0.36, resonance: 0.25, detune: 0.65, ampDecay: 0.55 } },
-    { name: 'Funky FM Pluck Bass', overrides: { cutoff: 0.64, resonance: 0.42, fmDirt: 0.58, ampDecay: 0.22 } },
+    // 10 Play Mode Presets
+    { name: '303 Acid Squelch', modeTag: 'beginner', overrides: { cutoff: 0.52, resonance: 0.72, fmDirt: 0.35, ampDecay: 0.26 }, osc1Wave: 'sawtooth', sustain: 0.55 },
+    { name: 'Reese Sub Bass', modeTag: 'beginner', overrides: { cutoff: 0.36, resonance: 0.25, detune: 0.65, ampDecay: 0.55 }, osc1Wave: 'supersaw', sustain: 0.75 },
+    { name: 'Funky FM Pluck Bass', modeTag: 'beginner', overrides: { cutoff: 0.64, resonance: 0.42, fmDirt: 0.58, ampDecay: 0.22 }, osc1Wave: 'square', sustain: 0.4 },
+    { name: 'Warm Synthwave 80s Bass', modeTag: 'beginner', overrides: { cutoff: 0.48, resonance: 0.32, detune: 0.35, ampDecay: 0.34 }, osc1Wave: 'sawtooth', sustain: 0.65 },
+    { name: '8-Bit NES Triangle Sub', modeTag: 'beginner', overrides: { cutoff: 0.7, resonance: 0.15, fmDirt: 0.2, ampDecay: 0.4 }, osc1Wave: 'triangle', sustain: 0.8 },
+    { name: 'Bouncy Rubber Bass', modeTag: 'beginner', overrides: { cutoff: 0.44, resonance: 0.58, pitchEnv: 0.55, ampDecay: 0.25 }, osc1Wave: 'square', sustain: 0.5 },
+    { name: 'Deep Jungle 808 Glide', modeTag: 'beginner', overrides: { cutoff: 0.28, resonance: 0.22, fmDirt: 0.25, ampDecay: 0.68 }, osc1Wave: 'sine', sustain: 0.85, glideTime: 90 },
+    { name: 'Robot Wobble Bass', modeTag: 'beginner', overrides: { cutoff: 0.58, resonance: 0.65, fmDirt: 0.62, detune: 0.45 }, osc1Wave: 'pwm', sustain: 0.7 },
+    { name: 'Candy Pop Slap Bass', modeTag: 'beginner', overrides: { cutoff: 0.68, resonance: 0.48, fmDirt: 0.45, ampDecay: 0.2 }, osc1Wave: 'sawtooth', sustain: 0.45 },
+    { name: 'Velvet Lo-Fi Sub', modeTag: 'beginner', overrides: { cutoff: 0.24, resonance: 0.18, detune: 0.2, ampDecay: 0.52 }, osc1Wave: 'triangle', sustain: 0.78 },
+    // 10 Studio Pro Presets
+    { name: 'Devilfish Overdrive 303', modeTag: 'pro', overrides: { cutoff: 0.62, resonance: 0.88, fmDirt: 0.68, pitchEnv: 0.72, ampDecay: 0.32 }, osc1Wave: 'sawtooth', sustain: 0.6, glideTime: 65 },
+    { name: 'Neurofunk Modulated Reese', modeTag: 'pro', overrides: { cutoff: 0.46, resonance: 0.54, fmDirt: 0.55, detune: 0.82, ampDecay: 0.74 }, osc1Wave: 'supersaw', sustain: 0.88, glideTime: 80 },
+    { name: 'Berlin Dub Sub-Harmonic', modeTag: 'pro', overrides: { cutoff: 0.22, resonance: 0.35, fmDirt: 0.18, detune: 0.25, ampDecay: 0.64 }, osc1Wave: 'sine', sustain: 0.82 },
+    { name: 'Darksynth Mid-Grind Bass', modeTag: 'pro', overrides: { cutoff: 0.56, resonance: 0.45, fmDirt: 0.78, detune: 0.52, ampDecay: 0.42 }, osc1Wave: 'sawtooth', sustain: 0.72 },
+    { name: 'UK Garage Hollow Square', modeTag: 'pro', overrides: { cutoff: 0.38, resonance: 0.42, fmDirt: 0.48, ampDecay: 0.28 }, osc1Wave: 'square', sustain: 0.55 },
+    { name: 'Detroit Electro PWM Bass', modeTag: 'pro', overrides: { cutoff: 0.54, resonance: 0.52, fmDirt: 0.34, detune: 0.38, ampDecay: 0.3 }, osc1Wave: 'pwm', sustain: 0.62 },
+    { name: 'West Coast Wavefold Bass', modeTag: 'pro', overrides: { cutoff: 0.66, resonance: 0.6, fmDirt: 0.85, pitchEnv: 0.45, ampDecay: 0.36 }, osc1Wave: 'triangle', sustain: 0.65 },
+    { name: 'Minimal Rolling Sub-Line', modeTag: 'pro', overrides: { cutoff: 0.3, resonance: 0.4, fmDirt: 0.22, ampDecay: 0.24 }, osc1Wave: 'sine', sustain: 0.58 },
+    { name: 'Sustained Drone Pedal Bass', modeTag: 'pro', overrides: { cutoff: 0.4, resonance: 0.36, fmDirt: 0.32, detune: 0.58, ampDecay: 0.92 }, osc1Wave: 'supersaw', sustain: 0.95, glideTime: 110 },
+    { name: 'Industrial FM Growl Bass', modeTag: 'pro', overrides: { cutoff: 0.72, resonance: 0.64, fmDirt: 0.92, detune: 0.48, ampDecay: 0.48 }, osc1Wave: 'sawtooth', sustain: 0.75 },
   ],
+  // Track 5: LEAD (20 Presets)
   5: [
-    { name: 'Hyper SuperSaw Lead', overrides: { cutoff: 0.78, resonance: 0.32, detune: 0.6, ampDecay: 0.4 } },
-    { name: 'Chiptune Pulse Lead', overrides: { cutoff: 0.84, resonance: 0.2, fmDirt: 0.4, detune: 0.1 } },
-    { name: 'Cyber Sync Lead', overrides: { cutoff: 0.68, resonance: 0.55, fmDirt: 0.65, pitchEnv: 0.3 } },
+    // 10 Play Mode Presets
+    { name: 'Hyper SuperSaw Lead', modeTag: 'beginner', overrides: { cutoff: 0.78, resonance: 0.32, detune: 0.6, ampDecay: 0.45 }, osc1Wave: 'supersaw', sustain: 0.75 },
+    { name: 'Chiptune Pulse Lead', modeTag: 'beginner', overrides: { cutoff: 0.84, resonance: 0.2, fmDirt: 0.4, detune: 0.1, ampDecay: 0.35 }, osc1Wave: 'square', sustain: 0.7 },
+    { name: 'Cyber Sync Lead', modeTag: 'beginner', overrides: { cutoff: 0.68, resonance: 0.55, fmDirt: 0.65, pitchEnv: 0.3, ampDecay: 0.4 }, osc1Wave: 'sawtooth', sustain: 0.68 },
+    { name: 'Starlight Flute Lead', modeTag: 'beginner', overrides: { cutoff: 0.56, resonance: 0.25, detune: 0.22, ampDecay: 0.55 }, osc1Wave: 'triangle', sustain: 0.82 },
+    { name: 'Neon Outrun Solo', modeTag: 'beginner', overrides: { cutoff: 0.74, resonance: 0.42, detune: 0.48, ampDecay: 0.5 }, osc1Wave: 'pwm', sustain: 0.78, glideTime: 45 },
+    { name: 'Bouncy Toy Piano Lead', modeTag: 'beginner', overrides: { cutoff: 0.64, resonance: 0.3, fmDirt: 0.35, ampDecay: 0.28 }, osc1Wave: 'sine', sustain: 0.45 },
+    { name: 'Laser Whistle Lead', modeTag: 'beginner', overrides: { cutoff: 0.82, resonance: 0.68, pitchEnv: 0.45, ampDecay: 0.42 }, osc1Wave: 'sine', sustain: 0.75, glideTime: 75 },
+    { name: 'Arcade Hero Brass', modeTag: 'beginner', overrides: { cutoff: 0.66, resonance: 0.35, detune: 0.42, ampDecay: 0.48 }, osc1Wave: 'sawtooth', sustain: 0.74 },
+    { name: 'Robot Talkbox Lead', modeTag: 'beginner', overrides: { cutoff: 0.72, resonance: 0.74, fmDirt: 0.58, ampDecay: 0.36 }, filterType: 'bp12', sustain: 0.65 },
+    { name: 'Dreamy Bell Lead', modeTag: 'beginner', overrides: { cutoff: 0.62, resonance: 0.28, fmDirt: 0.45, ampDecay: 0.6 }, osc1Wave: 'triangle', sustain: 0.7 },
+    // 10 Studio Pro Presets
+    { name: 'Hoover Rave Dominator', modeTag: 'pro', overrides: { cutoff: 0.76, resonance: 0.48, fmDirt: 0.52, detune: 0.88, pitchEnv: 0.55 }, osc1Wave: 'supersaw', sustain: 0.85, glideTime: 85 },
+    { name: 'Acid Screamer 303 Lead', modeTag: 'pro', overrides: { cutoff: 0.8, resonance: 0.86, fmDirt: 0.62, pitchEnv: 0.68, ampDecay: 0.34 }, osc1Wave: 'sawtooth', sustain: 0.65 },
+    { name: 'Polymoog Sustaining String', modeTag: 'pro', overrides: { cutoff: 0.64, resonance: 0.32, detune: 0.64, ampDecay: 0.88 }, osc1Wave: 'pwm', sustain: 0.92, glideTime: 55 },
+    { name: 'Cross-FM Glass Pluck', modeTag: 'pro', overrides: { cutoff: 0.86, resonance: 0.38, fmDirt: 0.75, detune: 0.28, ampDecay: 0.32 }, osc1Wave: 'sine', sustain: 0.5 },
+    { name: 'Boards of Analog Tape Lead', modeTag: 'pro', overrides: { cutoff: 0.46, resonance: 0.44, detune: 0.54, ampDecay: 0.68 }, osc1Wave: 'triangle', sustain: 0.84, glideTime: 65 },
+    { name: 'Modular Buchla LPG Lead', modeTag: 'pro', overrides: { cutoff: 0.58, resonance: 0.62, fmDirt: 0.68, pitchEnv: 0.4, ampDecay: 0.38 }, osc1Wave: 'sine', sustain: 0.6 },
+    { name: 'Berlin Detuned Techno Horn', modeTag: 'pro', overrides: { cutoff: 0.52, resonance: 0.5, fmDirt: 0.48, detune: 0.76, ampDecay: 0.72 }, osc1Wave: 'supersaw', sustain: 0.86 },
+    { name: 'Fifth Interval Prophet Lead', modeTag: 'pro', overrides: { cutoff: 0.7, resonance: 0.4, detune: 0.36, ampDecay: 0.54 }, osc1Wave: 'sawtooth', sustain: 0.78 },
+    { name: 'Industrial Distortion Lead', modeTag: 'pro', overrides: { cutoff: 0.84, resonance: 0.7, fmDirt: 0.9, detune: 0.5, ampDecay: 0.46 }, osc1Wave: 'square', sustain: 0.72 },
+    { name: 'Infinite Sustain Ribbon Lead', modeTag: 'pro', overrides: { cutoff: 0.68, resonance: 0.45, detune: 0.58, ampDecay: 0.95 }, osc1Wave: 'supersaw', sustain: 0.98, glideTime: 95 },
   ],
+  // Track 6: CHORDS (20 Presets)
   6: [
-    { name: 'Juno Warm Chorus Pad', overrides: { cutoff: 0.58, resonance: 0.22, detune: 0.52, ampDecay: 0.68 } },
-    { name: 'Neon Synthwave Stab', overrides: { cutoff: 0.74, resonance: 0.38, detune: 0.4, ampDecay: 0.35 } },
-    { name: 'Glass FM Keys', overrides: { cutoff: 0.66, resonance: 0.25, fmDirt: 0.48, ampDecay: 0.5 } },
+    // 10 Play Mode Presets
+    { name: 'Juno Warm Chorus Pad', modeTag: 'beginner', overrides: { cutoff: 0.58, resonance: 0.22, detune: 0.52, ampDecay: 0.72 }, osc1Wave: 'pwm', sustain: 0.85 },
+    { name: 'Neon Synthwave Stab', modeTag: 'beginner', overrides: { cutoff: 0.74, resonance: 0.38, detune: 0.4, ampDecay: 0.38 }, osc1Wave: 'sawtooth', sustain: 0.65 },
+    { name: 'Glass FM Keys', modeTag: 'beginner', overrides: { cutoff: 0.66, resonance: 0.25, fmDirt: 0.48, ampDecay: 0.52 }, osc1Wave: 'sine', sustain: 0.7 },
+    { name: 'Cloudy Dream Pad', modeTag: 'beginner', overrides: { cutoff: 0.44, resonance: 0.18, detune: 0.68, ampDecay: 0.88 }, osc1Wave: 'supersaw', sustain: 0.92 },
+    { name: '8-Bit Chiptune Triads', modeTag: 'beginner', overrides: { cutoff: 0.82, resonance: 0.2, detune: 0.15, ampDecay: 0.32 }, osc1Wave: 'square', sustain: 0.68 },
+    { name: 'Sunny House Organ', modeTag: 'beginner', overrides: { cutoff: 0.52, resonance: 0.32, fmDirt: 0.28, ampDecay: 0.36 }, osc1Wave: 'triangle', sustain: 0.75 },
+    { name: 'Starlight Rhodes EP', modeTag: 'beginner', overrides: { cutoff: 0.48, resonance: 0.2, fmDirt: 0.32, ampDecay: 0.58 }, osc1Wave: 'sine', sustain: 0.78 },
+    { name: 'Cosmic Brass Ensemble', modeTag: 'beginner', overrides: { cutoff: 0.64, resonance: 0.35, detune: 0.48, ampDecay: 0.64 }, osc1Wave: 'sawtooth', sustain: 0.82 },
+    { name: 'Candy Pop Pluck Chords', modeTag: 'beginner', overrides: { cutoff: 0.76, resonance: 0.42, detune: 0.3, ampDecay: 0.26 }, osc1Wave: 'pwm', sustain: 0.55 },
+    { name: 'Velvet Lo-Fi Tape Keys', modeTag: 'beginner', overrides: { cutoff: 0.36, resonance: 0.24, detune: 0.56, ampDecay: 0.62 }, osc1Wave: 'triangle', sustain: 0.8 },
+    // 10 Studio Pro Presets
+    { name: 'Basic Channel Dub Chord', modeTag: 'pro', overrides: { cutoff: 0.46, resonance: 0.68, fmDirt: 0.36, detune: 0.42, ampDecay: 0.28 }, filterType: 'bp12', sustain: 0.62 },
+    { name: 'Detroit Minor 9th Stab', modeTag: 'pro', overrides: { cutoff: 0.62, resonance: 0.54, fmDirt: 0.28, detune: 0.58, ampDecay: 0.44 }, osc1Wave: 'supersaw', sustain: 0.75 },
+    { name: 'CS-80 Blade Runner Swell', modeTag: 'pro', overrides: { cutoff: 0.56, resonance: 0.38, detune: 0.74, ampDecay: 0.94 }, osc1Wave: 'sawtooth', sustain: 0.96 },
+    { name: 'DX7 Crystalline E-Piano', modeTag: 'pro', overrides: { cutoff: 0.78, resonance: 0.22, fmDirt: 0.64, detune: 0.24, ampDecay: 0.56 }, osc1Wave: 'sine', sustain: 0.72 },
+    { name: 'Deep House Filtered Organ', modeTag: 'pro', overrides: { cutoff: 0.42, resonance: 0.46, fmDirt: 0.38, detune: 0.2, ampDecay: 0.34 }, osc1Wave: 'square', sustain: 0.7 },
+    { name: 'Ambient Cathedral Drone Pad', modeTag: 'pro', overrides: { cutoff: 0.38, resonance: 0.32, detune: 0.82, ampDecay: 0.98 }, osc1Wave: 'supersaw', sustain: 0.98 },
+    { name: 'Formant Vocal Choir Pad', modeTag: 'pro', overrides: { cutoff: 0.54, resonance: 0.72, detune: 0.66, ampDecay: 0.84 }, filterType: 'bp12', sustain: 0.9 },
+    { name: 'Broken Tape Mellotron', modeTag: 'pro', overrides: { cutoff: 0.4, resonance: 0.4, fmDirt: 0.44, detune: 0.6, ampDecay: 0.76 }, osc1Wave: 'triangle', sustain: 0.84 },
+    { name: 'Progressive Pluck Poly-Stab', modeTag: 'pro', overrides: { cutoff: 0.7, resonance: 0.48, detune: 0.46, ampDecay: 0.32 }, osc1Wave: 'pwm', sustain: 0.64 },
+    { name: 'Harmonic Swarm Sustain Pad', modeTag: 'pro', overrides: { cutoff: 0.5, resonance: 0.36, fmDirt: 0.3, detune: 0.86, ampDecay: 0.96 }, osc1Wave: 'supersaw', sustain: 0.98 },
   ],
+  // Track 7: ARP / FX (20 Presets)
   7: [
-    { name: 'Crystal Pluck Arp', overrides: { cutoff: 0.76, resonance: 0.35, ampDecay: 0.22, detune: 0.3 } },
-    { name: 'Laser Riser FX', overrides: { cutoff: 0.88, resonance: 0.68, pitchEnv: 0.7, fmDirt: 0.5 } },
-    { name: 'Starlight Bell Arp', overrides: { cutoff: 0.7, resonance: 0.28, fmDirt: 0.42, ampDecay: 0.48 } },
+    // 10 Play Mode Presets
+    { name: 'Crystal Pluck Arp', modeTag: 'beginner', overrides: { cutoff: 0.76, resonance: 0.35, ampDecay: 0.22, detune: 0.3 }, sustain: 0.5 },
+    { name: 'Laser Riser FX', modeTag: 'beginner', overrides: { cutoff: 0.88, resonance: 0.68, pitchEnv: 0.7, fmDirt: 0.5, ampDecay: 0.45 }, sustain: 0.75 },
+    { name: 'Starlight Bell Arp', modeTag: 'beginner', overrides: { cutoff: 0.7, resonance: 0.28, fmDirt: 0.42, ampDecay: 0.48 }, osc1Wave: 'sine', sustain: 0.68 },
+    { name: '8-Bit Gameboy Coin Arp', modeTag: 'beginner', overrides: { cutoff: 0.9, resonance: 0.2, fmDirt: 0.35, ampDecay: 0.16 }, osc1Wave: 'square', sustain: 0.45 },
+    { name: 'Cosmic Bubble Sequence', modeTag: 'beginner', overrides: { cutoff: 0.62, resonance: 0.72, pitchEnv: 0.5, ampDecay: 0.2 }, osc1Wave: 'triangle', sustain: 0.5 },
+    { name: 'Neon Synthwave Runner Arp', modeTag: 'beginner', overrides: { cutoff: 0.74, resonance: 0.42, detune: 0.45, ampDecay: 0.26 }, osc1Wave: 'sawtooth', sustain: 0.6 },
+    { name: 'Robot Telemetry Blips', modeTag: 'beginner', overrides: { cutoff: 0.84, resonance: 0.6, fmDirt: 0.72, ampDecay: 0.14 }, osc1Wave: 'pwm', sustain: 0.4 },
+    { name: 'Magic Harp Glissando', modeTag: 'beginner', overrides: { cutoff: 0.66, resonance: 0.24, detune: 0.35, ampDecay: 0.55 }, osc1Wave: 'triangle', sustain: 0.72 },
+    { name: 'Cyber Jungle Siren FX', modeTag: 'beginner', overrides: { cutoff: 0.78, resonance: 0.64, pitchEnv: 0.85, ampDecay: 0.6 }, osc1Wave: 'sawtooth', sustain: 0.8 },
+    { name: 'Music Box Lullaby Arp', modeTag: 'beginner', overrides: { cutoff: 0.64, resonance: 0.22, fmDirt: 0.38, ampDecay: 0.52 }, osc1Wave: 'sine', sustain: 0.65 },
+    // 10 Studio Pro Presets
+    { name: 'Tangerine Berlin Sequencer', modeTag: 'pro', overrides: { cutoff: 0.68, resonance: 0.56, fmDirt: 0.34, detune: 0.42, ampDecay: 0.28 }, osc1Wave: 'sawtooth', sustain: 0.62 },
+    { name: 'Buchla 259 Complex FM Arp', modeTag: 'pro', overrides: { cutoff: 0.72, resonance: 0.62, fmDirt: 0.84, pitchEnv: 0.48, ampDecay: 0.24 }, osc1Wave: 'sine', sustain: 0.55 },
+    { name: 'Acid 303 Hypnotic Line', modeTag: 'pro', overrides: { cutoff: 0.6, resonance: 0.86, fmDirt: 0.45, pitchEnv: 0.65, ampDecay: 0.22 }, osc1Wave: 'square', sustain: 0.58 },
+    { name: 'Shimmering SuperSaw Pluck', modeTag: 'pro', overrides: { cutoff: 0.82, resonance: 0.38, detune: 0.72, ampDecay: 0.36 }, osc1Wave: 'supersaw', sustain: 0.7 },
+    { name: 'Dub Delay Feedback Ping', modeTag: 'pro', overrides: { cutoff: 0.58, resonance: 0.76, fmDirt: 0.4, ampDecay: 0.18 }, filterType: 'bp12', sustain: 0.5 },
+    { name: 'Modular S&H Computer Bleeps', modeTag: 'pro', overrides: { cutoff: 0.86, resonance: 0.7, fmDirt: 0.78, pitchEnv: 0.75, ampDecay: 0.15 }, osc1Wave: 'square', sustain: 0.45 },
+    { name: 'Karplus-Strong Metallic String', modeTag: 'pro', overrides: { cutoff: 0.78, resonance: 0.52, fmDirt: 0.66, detune: 0.25, ampDecay: 0.42 }, osc1Wave: 'triangle', sustain: 0.64 },
+    { name: 'Dark Sci-Fi Drone Swell FX', modeTag: 'pro', overrides: { cutoff: 0.48, resonance: 0.58, fmDirt: 0.62, detune: 0.78, ampDecay: 0.9 }, osc1Wave: 'supersaw', sustain: 0.92 },
+    { name: 'Glitch Bit-Modulated Arp', modeTag: 'pro', overrides: { cutoff: 0.9, resonance: 0.64, fmDirt: 0.92, ampDecay: 0.19 }, osc1Wave: 'pwm', sustain: 0.52 },
+    { name: 'Celestial Harmonic Sustain', modeTag: 'pro', overrides: { cutoff: 0.74, resonance: 0.34, fmDirt: 0.48, detune: 0.68, ampDecay: 0.92 }, osc1Wave: 'supersaw', sustain: 0.95 },
   ],
 };
+
+export function applyPresetItemToSynth(
+  baseSynth: ProSynthConfig,
+  preset: TrackBankPresetItem
+): ProSynthConfig {
+  let next = {
+    ...baseSynth,
+    osc1: { ...baseSynth.osc1 },
+    osc2: { ...baseSynth.osc2 },
+    filter: { ...baseSynth.filter },
+    ampEnv: { ...baseSynth.ampEnv },
+    voice: { ...baseSynth.voice },
+  };
+  for (const [k, v] of Object.entries(preset.overrides)) {
+    if (typeof v === 'number') {
+      next = applyBeginnerMacroToSynth(
+        next,
+        k as keyof ProSynthConfig['beginnerMacros'],
+        v
+      );
+    }
+  }
+  if (preset.osc1Wave) next.osc1.wave = preset.osc1Wave;
+  if (preset.osc2Wave) next.osc2.wave = preset.osc2Wave;
+  if (preset.filterType) next.filter.type = preset.filterType;
+  if (typeof preset.sustain === 'number') next.ampEnv.sustain = preset.sustain;
+  if (typeof preset.glideTime === 'number') next.voice.glideTime = preset.glideTime;
+  return next;
+}
 
 /**
  * Applies a Beginner Macro change onto the shared ProSynthConfig so both modes
@@ -792,66 +992,407 @@ export interface StarterProjectSpec {
   id: string;
   name: string;
   subtitle: string;
+  modeTag: 'beginner' | 'pro';
   bpm: number;
   rootNote: number;
   scaleName: string;
   swing: number;
+  presetIndices?: [number, number, number, number, number, number, number, number];
+  kickSteps?: number[];
+  snareSteps?: number[];
+  hatSteps?: number[];
+  percSteps?: number[];
+  bassNotes?: { step: number; degree: number; len?: number }[];
+  leadNotes?: { step: number; degree: number; len?: number }[];
+  chordNotes?: { step: number; degree: number; len?: number }[];
+  arpSteps?: number[];
 }
 
+/**
+ * 20 Sample Patches for Groovebox v4:
+ * - 10 Sample Patches for PLAY (BEGINNER) Mode
+ * - 10 Sample Patches for STUDIO (PRO) Mode
+ */
 export const STARTER_PROJECT_SPECS: StarterProjectSpec[] = [
+  // ==========================================================================
+  // 10 PLAY (BEGINNER) MODE SAMPLE PATCHES
+  // ==========================================================================
   {
     id: 'space-mission',
     name: 'Space Mission',
-    subtitle: 'Cosmic Synthwave & Driving Arps',
+    subtitle: 'Cosmic Synthwave & Sustained Chords',
+    modeTag: 'beginner',
     bpm: 120,
     rootNote: 0, // C
     scaleName: 'Minor',
     swing: 0,
+    presetIndices: [0, 0, 0, 0, 3, 0, 0, 0],
+    bassNotes: [
+      { step: 0, degree: 0, len: 4 },
+      { step: 4, degree: 2, len: 4 },
+      { step: 8, degree: 3, len: 4 },
+      { step: 12, degree: 4, len: 4 },
+    ],
+    leadNotes: [
+      { step: 0, degree: 4, len: 4 },
+      { step: 6, degree: 2, len: 2 },
+      { step: 8, degree: 0, len: 4 },
+      { step: 12, degree: 5, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 5, len: 8 },
+    ],
   },
   {
     id: '8bit-boss',
     name: '8-Bit Boss Battle',
     subtitle: 'High-Energy Chiptune Arcade Action',
+    modeTag: 'beginner',
     bpm: 140,
     rootNote: 2, // D
     scaleName: 'Harmonic Minor',
     swing: 0,
+    presetIndices: [2, 3, 5, 4, 4, 1, 4, 3],
+    kickSteps: [0, 3, 6, 8, 11, 14],
+    bassNotes: [
+      { step: 0, degree: 0, len: 2 },
+      { step: 2, degree: 4, len: 2 },
+      { step: 4, degree: 3, len: 4 },
+      { step: 8, degree: 2, len: 4 },
+      { step: 12, degree: 6, len: 4 },
+    ],
   },
   {
     id: 'robot-dance',
     name: 'Robot Dance',
     subtitle: 'Electro Funk & Acid Squelch',
+    modeTag: 'beginner',
     bpm: 126,
     rootNote: 9, // A
     scaleName: 'Dorian',
     swing: 0.24,
+    presetIndices: [4, 8, 6, 2, 7, 8, 5, 6],
+    kickSteps: [0, 6, 10],
+    snareSteps: [4, 12],
   },
   {
     id: 'cyber-jungle',
     name: 'Cyber Jungle',
-    subtitle: 'Breakbeat Syncopation & Deep Sub',
+    subtitle: 'Breakbeat Syncopation & 808 Sub Glide',
+    modeTag: 'beginner',
     bpm: 156,
     rootNote: 5, // F
     scaleName: 'Minor Pentatonic',
     swing: 0.15,
+    presetIndices: [0, 2, 1, 5, 6, 2, 3, 8],
+    kickSteps: [0, 6, 10],
+    snareSteps: [4, 11, 12],
+    bassNotes: [
+      { step: 0, degree: 0, len: 6 },
+      { step: 6, degree: 3, len: 4 },
+      { step: 10, degree: 2, len: 6 },
+    ],
   },
   {
     id: 'neon-highway',
     name: 'Neon Highway',
-    subtitle: 'Outrun Night Drive & Analog Chords',
+    subtitle: 'Outrun Night Drive & Analog Pads',
+    modeTag: 'beginner',
     bpm: 110,
     rootNote: 4, // E
     scaleName: 'Minor',
     swing: 0.1,
+    presetIndices: [7, 5, 8, 6, 3, 4, 1, 5],
+    chordNotes: [{ step: 0, degree: 0, len: 16 }],
+    leadNotes: [
+      { step: 0, degree: 4, len: 6 },
+      { step: 8, degree: 2, len: 8 },
+    ],
   },
   {
     id: 'starlight-chill',
     name: 'Starlight Chill',
-    subtitle: 'Lo-Fi Dream Beats & Warm Pads',
+    subtitle: 'Lo-Fi Dream Beats & Warm Sustained Keys',
+    modeTag: 'beginner',
     bpm: 92,
     rootNote: 7, // G
     scaleName: 'Major',
     swing: 0.35,
+    presetIndices: [8, 7, 2, 7, 9, 3, 6, 9],
+    kickSteps: [0, 7, 8],
+    snareSteps: [4, 12],
+    bassNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 4, len: 8 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 3, len: 8 },
+    ],
+  },
+  {
+    id: 'pixel-kart',
+    name: 'Pixel Kart Racer',
+    subtitle: 'Turbo Rainbow Road Melodic Bounce',
+    modeTag: 'beginner',
+    bpm: 132,
+    rootNote: 0, // C
+    scaleName: 'Major Pentatonic',
+    swing: 0.08,
+    presetIndices: [5, 3, 3, 4, 2, 5, 8, 3],
+    leadNotes: [
+      { step: 0, degree: 0, len: 2 },
+      { step: 2, degree: 2, len: 2 },
+      { step: 4, degree: 4, len: 4 },
+      { step: 8, degree: 5, len: 4 },
+      { step: 12, degree: 4, len: 4 },
+    ],
+  },
+  {
+    id: 'candy-pop',
+    name: 'Candy Pop Arcade',
+    subtitle: 'Bubblegum Plucks & Funky Slap Bass',
+    modeTag: 'beginner',
+    bpm: 118,
+    rootNote: 5, // F
+    scaleName: 'Major',
+    swing: 0.18,
+    presetIndices: [5, 9, 8, 8, 8, 9, 8, 0],
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+  },
+  {
+    id: 'dino-stomp',
+    name: 'Dino Stomp Party',
+    subtitle: 'Booming Prehistoric Sub & Jungle Toms',
+    modeTag: 'beginner',
+    bpm: 105,
+    rootNote: 2, // D
+    scaleName: 'Minor Pentatonic',
+    swing: 0.22,
+    presetIndices: [9, 4, 3, 5, 5, 7, 7, 4],
+    kickSteps: [0, 3, 8, 11],
+    percSteps: [2, 6, 7, 10, 14, 15],
+  },
+  {
+    id: 'galaxy-lullaby',
+    name: 'Galaxy Lullaby',
+    subtitle: 'Zero-Gravity Music Box & Floating Pads',
+    modeTag: 'beginner',
+    bpm: 84,
+    rootNote: 10, // A#
+    scaleName: 'Major',
+    swing: 0.12,
+    presetIndices: [3, 7, 9, 7, 9, 3, 3, 9],
+    kickSteps: [0, 8],
+    snareSteps: [12],
+    bassNotes: [{ step: 0, degree: 0, len: 16 }],
+    chordNotes: [{ step: 0, degree: 0, len: 16 }],
+    leadNotes: [
+      { step: 0, degree: 4, len: 8 },
+      { step: 8, degree: 2, len: 8 },
+    ],
+  },
+
+  // ==========================================================================
+  // 10 STUDIO (PRO) MODE SAMPLE PATCHES
+  // ==========================================================================
+  {
+    id: 'berlin-dub-techno',
+    name: 'Berlin Dub Techno',
+    subtitle: 'Basic Channel Filtered Chords & Deep Sub',
+    modeTag: 'pro',
+    bpm: 122,
+    rootNote: 0, // C
+    scaleName: 'Minor',
+    swing: 0.16,
+    presetIndices: [12, 10, 11, 11, 12, 16, 10, 14],
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    bassNotes: [
+      { step: 0, degree: 0, len: 6 },
+      { step: 6, degree: 0, len: 2 },
+      { step: 8, degree: 4, len: 8 },
+    ],
+    chordNotes: [
+      { step: 2, degree: 0, len: 6 },
+      { step: 11, degree: 3, len: 5 },
+    ],
+  },
+  {
+    id: 'acid-warehouse-303',
+    name: 'Acid Warehouse 303',
+    subtitle: 'Devilfish Overdrive Squelch & 909 Pound',
+    modeTag: 'pro',
+    bpm: 136,
+    rootNote: 4, // E
+    scaleName: 'Phrygian',
+    swing: 0.08,
+    presetIndices: [15, 15, 10, 18, 10, 11, 11, 12],
+    kickSteps: [0, 4, 8, 12],
+    hatSteps: [2, 6, 10, 14],
+    bassNotes: [
+      { step: 0, degree: 0, len: 3 },
+      { step: 3, degree: 1, len: 1 },
+      { step: 4, degree: 0, len: 2 },
+      { step: 6, degree: 4, len: 2 },
+      { step: 8, degree: 1, len: 4 },
+      { step: 12, degree: 0, len: 4 },
+    ],
+  },
+  {
+    id: 'idm-polyrhythm-lab',
+    name: 'IDM Polyrhythm Lab',
+    subtitle: 'Buchla LPG Pings, Glitch Percussion & Braindance Pads',
+    modeTag: 'pro',
+    bpm: 128,
+    rootNote: 9, // A
+    scaleName: 'Dorian',
+    swing: 0.12,
+    presetIndices: [14, 16, 15, 16, 16, 14, 17, 15],
+    kickSteps: [0, 5, 10, 13],
+    snareSteps: [4, 9, 12, 15],
+    chordNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 2, len: 8 },
+    ],
+  },
+  {
+    id: 'deep-house-stabs',
+    name: 'Deep House Chord Stabs',
+    subtitle: 'Detroit Minor 9th Chords & Swung Organ',
+    modeTag: 'pro',
+    bpm: 120,
+    rootNote: 5, // F
+    scaleName: 'Minor',
+    swing: 0.32,
+    presetIndices: [10, 15, 17, 13, 14, 13, 11, 13],
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    hatSteps: [2, 6, 10, 14],
+    bassNotes: [
+      { step: 0, degree: 0, len: 3 },
+      { step: 3, degree: 2, len: 3 },
+      { step: 6, degree: 4, len: 2 },
+      { step: 8, degree: 3, len: 4 },
+      { step: 12, degree: 4, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 4 },
+      { step: 6, degree: 2, len: 4 },
+      { step: 12, degree: 4, len: 4 },
+    ],
+  },
+  {
+    id: 'detroit-electro-funk',
+    name: 'Detroit Electro Funk',
+    subtitle: 'Drexciyan Syncopated 808s & PWM Leads',
+    modeTag: 'pro',
+    bpm: 130,
+    rootNote: 7, // G
+    scaleName: 'Minor',
+    swing: 0.18,
+    presetIndices: [17, 15, 10, 14, 15, 12, 13, 10],
+    kickSteps: [0, 6, 10],
+    snareSteps: [4, 12],
+    bassNotes: [
+      { step: 0, degree: 0, len: 4 },
+      { step: 4, degree: 3, len: 2 },
+      { step: 6, degree: 4, len: 4 },
+      { step: 10, degree: 2, len: 6 },
+    ],
+  },
+  {
+    id: 'cyberpunk-darksynth',
+    name: 'Cyberpunk Darksynth',
+    subtitle: 'Mid-Grind Distortion Bass & CS-80 Brass Swells',
+    modeTag: 'pro',
+    bpm: 106,
+    rootNote: 2, // D
+    scaleName: 'Harmonic Minor',
+    swing: 0.05,
+    presetIndices: [11, 11, 18, 12, 13, 18, 12, 17],
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    bassNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 5, len: 4 },
+      { step: 12, degree: 4, len: 4 },
+    ],
+    leadNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 4, len: 8 },
+    ],
+    chordNotes: [{ step: 0, degree: 0, len: 16 }],
+  },
+  {
+    id: 'ambient-modular-drift',
+    name: 'Ambient Modular Drift',
+    subtitle: 'Cathedral Sustain Pads & Buchla Plucks',
+    modeTag: 'pro',
+    bpm: 78,
+    rootNote: 3, // D#
+    scaleName: 'Dorian',
+    swing: 0.1,
+    presetIndices: [12, 17, 19, 19, 18, 19, 15, 19],
+    kickSteps: [0, 10],
+    snareSteps: [12],
+    bassNotes: [{ step: 0, degree: 0, len: 16 }],
+    leadNotes: [
+      { step: 0, degree: 4, len: 8 },
+      { step: 8, degree: 6, len: 8 },
+    ],
+    chordNotes: [{ step: 0, degree: 0, len: 16 }],
+  },
+  {
+    id: 'breakbeat-chaos-160',
+    name: 'Breakbeat Chaos 160',
+    subtitle: 'Neurofunk Reese Sustains & Sliced Jungle Snares',
+    modeTag: 'pro',
+    bpm: 160,
+    rootNote: 5, // F
+    scaleName: 'Minor',
+    swing: 0.1,
+    presetIndices: [19, 12, 16, 15, 11, 10, 16, 18],
+    kickSteps: [0, 10],
+    snareSteps: [4, 11, 12, 15],
+    bassNotes: [
+      { step: 0, degree: 0, len: 10 },
+      { step: 10, degree: 2, len: 6 },
+    ],
+  },
+  {
+    id: 'minimal-microhouse',
+    name: 'Minimal Microhouse',
+    subtitle: 'Pinpoint Clicks, Sub-Rollers & Vocal Formants',
+    modeTag: 'pro',
+    bpm: 124,
+    rootNote: 9, // A
+    scaleName: 'Minor Pentatonic',
+    swing: 0.28,
+    presetIndices: [16, 17, 12, 10, 17, 15, 16, 14],
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    hatSteps: [2, 6, 10, 14],
+  },
+  {
+    id: 'hypnotic-prog-arp',
+    name: 'Hypnotic Progressive Arp',
+    subtitle: 'Rolling Berlin Sequencer & Sustained Pedal Bass',
+    modeTag: 'pro',
+    bpm: 123,
+    rootNote: 11, // B
+    scaleName: 'Minor',
+    swing: 0.12,
+    presetIndices: [10, 13, 14, 13, 18, 17, 19, 10],
+    kickSteps: [0, 4, 8, 12],
+    bassNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 5, len: 8 },
+    ],
+    chordNotes: [{ step: 0, degree: 0, len: 16 }],
+    arpSteps: [0, 2, 3, 5, 6, 8, 10, 11, 13, 14],
   },
 ];
 
@@ -862,15 +1403,21 @@ export function createStarterProject(specId: string = 'space-mission'): Groovebo
 
   const tracks: TrackConfig[] = TRACK_IDENTITIES.map((meta) => {
     const presetList = TRACK_PRESET_BANKS[meta.index] ?? [];
-    const firstPresetName = presetList[0]?.name ?? `${meta.name} Init`;
+    const targetPresetIdx = spec.presetIndices?.[meta.index] ?? 0;
+    const chosenPreset = presetList[targetPresetIdx] ?? presetList[0];
+    const baseSynth = createTrackDefaultSynth(meta.index);
+    const configuredSynth = chosenPreset
+      ? applyPresetItemToSynth(baseSynth, chosenPreset)
+      : baseSynth;
+
     return {
       index: meta.index,
       name: meta.name,
       icon: meta.icon,
       color: meta.color,
       isDrum: meta.isDrum,
-      presetName: firstPresetName,
-      synth: createTrackDefaultSynth(meta.index),
+      presetName: chosenPreset?.name ?? `${meta.name} Init`,
+      synth: configuredSynth,
       insertFx: createDefaultInsertFx(meta.index),
       voiceLeading: true,
       chordStrumMs: meta.index === 6 ? 18 : 0,
@@ -891,31 +1438,27 @@ export function createStarterProject(specId: string = 'space-mission'): Groovebo
 
   // Create distinct recipes across patterns A1..D4 so Clip Matrix & Crossfader have rich variations
   const patternA1 = buildPatternFromRecipe('A1', spec.rootNote, spec.scaleName, {
-    kickSteps: spec.id === 'cyber-jungle' ? [0, 6, 10] : [0, 4, 8, 12],
-    snareSteps: [4, 12],
-    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
-    percSteps: [3, 7, 11, 15],
-    bassNotes: [
-      { step: 0, degree: 0, len: 2 },
-      { step: 2, degree: 0, len: 1 },
-      { step: 4, degree: 2, len: 2 },
-      { step: 7, degree: 4, len: 1 },
-      { step: 8, degree: 3, len: 3 },
-      { step: 12, degree: 4, len: 2 },
-      { step: 14, degree: 6, len: 2 },
+    kickSteps: spec.kickSteps ?? [0, 4, 8, 12],
+    snareSteps: spec.snareSteps ?? [4, 12],
+    hatSteps: spec.hatSteps ?? [0, 2, 4, 6, 8, 10, 12, 14],
+    percSteps: spec.percSteps ?? [3, 7, 11, 15],
+    bassNotes: spec.bassNotes ?? [
+      { step: 0, degree: 0, len: 4 },
+      { step: 4, degree: 2, len: 4 },
+      { step: 8, degree: 3, len: 4 },
+      { step: 12, degree: 4, len: 4 },
     ],
-    leadNotes: [
-      { step: 0, degree: 4, len: 3 },
-      { step: 4, degree: 2, len: 2 },
-      { step: 6, degree: 0, len: 2 },
-      { step: 10, degree: 5, len: 3 },
-      { step: 14, degree: 4, len: 2 },
+    leadNotes: spec.leadNotes ?? [
+      { step: 0, degree: 4, len: 4 },
+      { step: 4, degree: 2, len: 4 },
+      { step: 8, degree: 0, len: 4 },
+      { step: 12, degree: 5, len: 4 },
     ],
-    chordNotes: [
+    chordNotes: spec.chordNotes ?? [
       { step: 0, degree: 0, len: 8 },
       { step: 8, degree: 5, len: 8 },
     ],
-    arpSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    arpSteps: spec.arpSteps ?? [0, 2, 4, 6, 8, 10, 12, 14],
   });
 
   const patternA2 = buildPatternFromRecipe('A2', spec.rootNote, spec.scaleName, {
@@ -985,7 +1528,7 @@ export function createStarterProject(specId: string = 'space-mission'): Groovebo
     id: `proj_${spec.id}`,
     name: spec.name,
     updatedAt: Date.now(),
-    mode: 'beginner',
+    mode: spec.modeTag,
     ecoMode: isLowSpecDevice,
     safeLockEnabled: false,
     bpm: spec.bpm,

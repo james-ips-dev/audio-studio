@@ -456,9 +456,17 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
         if (!pat) return prev;
         const nextTracks = pat.tracks.map((seq) => {
           if (seq.trackIndex !== trackIndex) return seq;
-          const nextSteps = seq.steps.map((s, idx) =>
-            idx === stepIndex ? updater(s) : s
-          );
+          const updatedStep = updater(seq.steps[stepIndex]);
+          const maxDur = updatedStep.active
+            ? Math.max(1, ...updatedStep.notes.map((n) => n.durationSteps || 1))
+            : 1;
+          const nextSteps = seq.steps.map((s, idx) => {
+            if (idx === stepIndex) return updatedStep;
+            if (maxDur > 1 && idx > stepIndex && idx < stepIndex + maxDur) {
+              return { ...s, active: false };
+            }
+            return s;
+          });
           return { ...seq, steps: nextSteps };
         });
         return {

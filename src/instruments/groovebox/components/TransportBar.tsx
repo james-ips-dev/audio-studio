@@ -467,6 +467,34 @@ export const TransportBar: React.FC<TransportBarProps> = ({
           ECO
         </button>
 
+        {/* Sample Patch Quick Selector (20 Sample Patches: 10 Play + 10 Studio) */}
+        <select
+          aria-label="Sample Patch Selector"
+          value={project.id.replace(/^proj_/, '')}
+          onChange={(e) => onLoadStarterProject(e.target.value)}
+          className="hidden md:block h-9 px-2 rounded-lg bg-black/45 border border-white/15 font-studio-mono text-[11px] font-bold text-amber-300 cursor-pointer max-w-[165px] truncate"
+          title="Load 20 Factory Sample Patches (10 Play Mode + 10 Studio Pro Mode)"
+        >
+          <optgroup label="🌱 10 PLAY MODE SAMPLE PATCHES" className="bg-[#12151E] text-rose-300">
+            {STARTER_PROJECT_SPECS.filter((s) => s.modeTag === 'beginner').map(
+              (s) => (
+                <option key={s.id} value={s.id} className="bg-[#12151E] text-white">
+                  🎮 {s.name} ({s.bpm} BPM)
+                </option>
+              )
+            )}
+          </optgroup>
+          <optgroup label="🎛️ 10 STUDIO PRO SAMPLE PATCHES" className="bg-[#12151E] text-sky-300">
+            {STARTER_PROJECT_SPECS.filter((s) => s.modeTag === 'pro').map(
+              (s) => (
+                <option key={s.id} value={s.id} className="bg-[#12151E] text-white">
+                  🎛️ {s.name} ({s.bpm} BPM)
+                </option>
+              )
+            )}
+          </optgroup>
+        </select>
+
         {/* Project Menu Dropdown */}
         <div className="relative">
           <button
@@ -510,30 +538,62 @@ export const TransportBar: React.FC<TransportBarProps> = ({
                 </div>
               </div>
 
-              {/* 6 Ready-to-Remix Starter Projects */}
-              <div>
-                <div className="font-studio-mono text-[10px] font-bold uppercase text-amber-400 mb-1.5">
-                  🚀 6 READY-TO-REMIX STARTER PROJECTS
+              {/* 20 Sample Patches (10 Play Mode + 10 Studio Pro Mode) */}
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <div>
+                  <div className="font-studio-mono text-[10px] font-bold uppercase text-rose-400 mb-1">
+                    🌱 10 PLAY (BEGINNER) SAMPLE PATCHES
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {STARTER_PROJECT_SPECS.filter(
+                      (sp) => sp.modeTag === 'beginner'
+                    ).map((sp) => (
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => {
+                          onLoadStarterProject(sp.id);
+                          setProjectMenuOpen(false);
+                        }}
+                        className="p-1.5 rounded bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="text-[10px] font-bold text-white truncate">
+                          {sp.name}
+                        </div>
+                        <div className="text-[8px] font-studio-mono text-gray-400 truncate">
+                          {sp.bpm} BPM • {ROOT_NOTE_NAMES[sp.rootNote]} {sp.scaleName}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {STARTER_PROJECT_SPECS.map((sp) => (
-                    <button
-                      key={sp.id}
-                      type="button"
-                      onClick={() => {
-                        onLoadStarterProject(sp.id);
-                        setProjectMenuOpen(false);
-                      }}
-                      className="p-1.5 rounded bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-left transition-colors cursor-pointer"
-                    >
-                      <div className="text-[11px] font-bold text-white truncate">
-                        {sp.name}
-                      </div>
-                      <div className="text-[9px] font-studio-mono text-gray-400">
-                        {sp.bpm} BPM • {ROOT_NOTE_NAMES[sp.rootNote]} {sp.scaleName}
-                      </div>
-                    </button>
-                  ))}
+
+                <div>
+                  <div className="font-studio-mono text-[10px] font-bold uppercase text-sky-400 mb-1">
+                    🎛️ 10 STUDIO (PRO) SAMPLE PATCHES
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {STARTER_PROJECT_SPECS.filter(
+                      (sp) => sp.modeTag === 'pro'
+                    ).map((sp) => (
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => {
+                          onLoadStarterProject(sp.id);
+                          setProjectMenuOpen(false);
+                        }}
+                        className="p-1.5 rounded bg-white/5 hover:bg-sky-500/20 border border-white/10 hover:border-sky-500/40 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="text-[10px] font-bold text-white truncate">
+                          {sp.name}
+                        </div>
+                        <div className="text-[8px] font-studio-mono text-gray-400 truncate">
+                          {sp.bpm} BPM • {ROOT_NOTE_NAMES[sp.rootNote]} {sp.scaleName}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

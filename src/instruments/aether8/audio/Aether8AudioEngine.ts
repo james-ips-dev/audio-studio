@@ -7,6 +7,8 @@
 
 import { audioGuard } from '../../../core/audioGuard';
 import {
+  AETHER_TRACK_META,
+  aetherMidiToFreq,
   computeEuclideanSteps,
   DIRECT_OUTPUT_CHANNELS,
 } from '../presets/factoryPatches';
@@ -19,7 +21,7 @@ import type {
 
 export interface Aether8Telemetry {
   globalStep: number;
-  xoxTrackSteps: [number, number, number, number];
+  xoxTrackSteps: number[];
   euclidStep: number;
   lfo1Val: number; // -1..+1
   lfo2Val: number; // -1..+1
@@ -177,6 +179,9 @@ export class Aether8AudioEngine {
 
   private currentGlobalStep: number = 0;
   private euclidStepCounter: number = 0;
+  private sustainedStepsRemaining: number[] = Array(8).fill(0);
+  private lastMonophonicFreqByTrack: number[] = Array(8).fill(110);
+  private lastTrackCvNorm: number[] = Array(8).fill(0);
   private lfo1Phase: number = 0;
   private lfo2Phase: number = 0;
   private chaosState: number = 0.15;
@@ -812,6 +817,7 @@ export class Aether8AudioEngine {
     this.isPlaying = true;
     this.currentGlobalStep = 0;
     this.euclidStepCounter = 0;
+    this.sustainedStepsRemaining = Array(8).fill(0);
     this.nextStepTime = ctx.currentTime + 0.03;
     this.syncContinuousNodes();
 
@@ -834,6 +840,7 @@ export class Aether8AudioEngine {
       window.clearInterval(this.modLoopTimer);
       this.modLoopTimer = null;
     }
+    this.sustainedStepsRemaining = Array(8).fill(0);
     this.syncContinuousNodes();
   }
 
@@ -888,52 +895,93 @@ export class Aether8AudioEngine {
     const bank = p.xoxPatterns[p.activePattern];
     if (!bank) return;
 
-    const trackSteps: [number, number, number, number] = [0, 0, 0, 0];
-    const voiceKeys: BeatVoiceKey[] = ['kick', 'rim', 'hat', 'tom'];
-    const xoxTrigOuts = ['xox:trig1', 'xox:trig2', 'xox:trig3', 'xox:trig4'];
-    const beatTrigIns = [
-      'beats:kickIn',
-      'beats:rimIn',
-      'beats:hatIn',
-      'beats:tomIn',
-    ];
+    const stepSec = 60 / Math.max(30, p.bpm) / 4;
+    const trackSteps: number[] = Array(8).fill(0);
 
     let anyBeatStepFired = false;
 
-    for (let t = 0; t < 4; t++) {
+    for (let t = 0; t < 8; t++) {
+      const meta = AETHER_TRACK_META[t];
       const polyLen = Math.max(4, Math.min(16, bank.trackLengths[t] || 16));
       const barIdx = Math.floor(globalStep / 16);
       const stepInBar = (globalStep % 16) % polyLen;
       const absIdx = barIdx * 16 + stepInBar;
       trackSteps[t] = absIdx;
 
-      const active = bank.steps[t]?.[absIdx] === 1 && !p.xoxMuted[t];
+      // Hold multi-beat tied sustain without retriggering on covered steps
+      if (this.sustainedStepsRemaining[t] > 0) {
+        this.sustainedStepsRemaining[t]--;
+        continue;
+      }
+
+      const stepVal = bank.steps[t]?.[absIdx] ?? 0;
+      const active = stepVal >= 1 && !p.xoxMuted[t];
       if (!active) continue;
 
       anyBeatStepFired = true;
+      if (stepVal > 1) {
+        this.sustainedStepsRemaining[t] = stepVal - 1;
+      }
 
-      // Trigger Module 02 Analog Beat Synth if normalled LNK is ON or patched via cable
+      const gateDurationSec = Math.max(
+        0.05,
+        stepVal * stepSec * (stepVal > 1 ? 0.97 : 0.92)
+      );
+      const midiNote = bank.notes?.[t]?.[absIdx] ?? meta.defaultMidiNote;
+      this.lastTrackCvNorm[t] = Math.max(
+        -1,
+        Math.min(1, (midiNote - meta.defaultMidiNote) / 24)
+      );
+
+      // Trigger Module 02 Studio Beat Synth if normalled LNK is ON or patched via cable
       if (
         p.xoxNormLink[t] ||
-        this.isPatched(xoxTrigOuts[t], beatTrigIns[t])
+        this.isPatched(meta.trigOutId, meta.trigInId)
       ) {
-        this.triggerBeatSynthVoice(voiceKeys[t], time);
+        this.triggerBeatSynthVoice(
+          meta.key,
+          time,
+          gateDurationSec,
+          stepVal > 1,
+          midiNote
+        );
+      }
+
+      // Cross-patching: allow any X0X track trigger out to trigger any other Module 02 track input
+      for (const destMeta of AETHER_TRACK_META) {
+        if (
+          destMeta.index !== t &&
+          this.isPatched(meta.trigOutId, destMeta.trigInId)
+        ) {
+          this.triggerBeatSynthVoice(
+            destMeta.key,
+            time,
+            gateDurationSec,
+            stepVal > 1,
+            midiNote
+          );
+        }
       }
 
       // Check if this X0X track is patched into Vactrol Sub-Pulse (`pulse:trigIn`)
-      if (this.isPatched(xoxTrigOuts[t], 'pulse:trigIn')) {
+      if (this.isPatched(meta.trigOutId, 'pulse:trigIn')) {
         this.triggerVactrolPing(time);
       }
 
       // Check if this X0X track is patched into LFO Hard Phase Reset (`mod:lfoResetIn`)
-      if (this.isPatched(xoxTrigOuts[t], 'mod:lfoResetIn')) {
+      if (this.isPatched(meta.trigOutId, 'mod:lfoResetIn')) {
         this.lfo1Phase = 0;
         this.lfo2Phase = 0;
       }
 
       // Check if this X0X track is patched into S&H Trigger (`mod:shTrigIn`)
-      if (this.isPatched(xoxTrigOuts[t], 'mod:shTrigIn')) {
+      if (this.isPatched(meta.trigOutId, 'mod:shTrigIn')) {
         this.advanceSampleAndHold();
+      }
+
+      // Check if this X0X track is patched into Thunder Trigger (`bio:thndrTrg`)
+      if (this.isPatched(meta.trigOutId, 'bio:thndrTrg')) {
+        this.triggerThunderStrike(time);
       }
     }
 
@@ -951,10 +999,10 @@ export class Aether8AudioEngine {
     // Module 03 // Euclidean & Time Divider advancement (`INT BPM` vs `EXT STEP`)
     const shouldAdvanceEuclid = p.clockExtStepMode
       ? (anyBeatStepFired && this.isPatched('xox:stepClk', 'clock:stepIn')) ||
-        xoxTrigOuts.some(
-          (out, i) =>
-            bank.steps[i]?.[trackSteps[i]] === 1 &&
-            this.isPatched(out, 'clock:stepIn')
+        AETHER_TRACK_META.some(
+          (m, i) =>
+            (bank.steps[i]?.[trackSteps[i]] ?? 0) >= 1 &&
+            this.isPatched(m.trigOutId, 'clock:stepIn')
         )
       : true;
 
@@ -1056,14 +1104,12 @@ export class Aether8AudioEngine {
     }
 
     const bank = p.xoxPatterns[p.activePattern];
-    const polyLens = bank?.trackLengths ?? [16, 16, 16, 16];
+    const polyLens = bank?.trackLengths ?? [16, 16, 16, 16, 16, 16, 16, 16];
     const barIdx = Math.floor(this.currentGlobalStep / 16);
-    const xoxTrackSteps: [number, number, number, number] = [
-      barIdx * 16 + ((this.currentGlobalStep % 16) % polyLens[0]),
-      barIdx * 16 + ((this.currentGlobalStep % 16) % polyLens[1]),
-      barIdx * 16 + ((this.currentGlobalStep % 16) % polyLens[2]),
-      barIdx * 16 + ((this.currentGlobalStep % 16) % polyLens[3]),
-    ];
+    const xoxTrackSteps: number[] = Array.from(
+      { length: 8 },
+      (_, idx) => barIdx * 16 + ((this.currentGlobalStep % 16) % (polyLens[idx] || 16))
+    );
 
     const telemetry: Aether8Telemetry = {
       globalStep: this.currentGlobalStep,
@@ -1084,84 +1130,211 @@ export class Aether8AudioEngine {
     }
   }
 
+  private computeCvSumForJack(toJackId: string): number {
+    let sum = 0;
+    for (const cable of this.patchRef.cables) {
+      if (cable.type !== 'cv' || cable.to !== toJackId) continue;
+      let val = 0;
+      if (cable.from.startsWith('xox:cv')) {
+        const idx = Number(cable.from.replace('xox:cv', '')) - 1;
+        val = this.lastTrackCvNorm[idx] ?? 0;
+      } else if (cable.from === 'mod:lfo1Out') {
+        val = Math.sin(this.lfo1Phase * Math.PI * 2);
+      } else if (cable.from === 'mod:lfo2Out') {
+        val =
+          1 -
+          4 *
+            Math.abs(
+              Math.round(this.lfo2Phase - 0.25) - (this.lfo2Phase - 0.25)
+            );
+      } else if (cable.from === 'mod:chaosOut') {
+        val = this.chaosState;
+      } else if (cable.from === 'mod:shOut') {
+        val = this.shCurrent;
+      } else if (cable.from === 'beats:envOut') {
+        val = this.beatEnvValue;
+      }
+      sum += val * (cable.attenuation ?? 1.0);
+    }
+    return sum;
+  }
+
   /**
-   * Module 02 // Analog Beat Synth (4 Independent Full-Synth Percussion Voices)
+   * Module 02 // 8-Track Studio Synth & Beat Engine
+   * Full Multi-Oscillator + Sub 1 + Sub 2 + Noise + Multi-Mode Filter + Drive + ADSR + Unison/Glide Engine
    */
-  public triggerBeatSynthVoice(voiceKey: BeatVoiceKey, time?: number): void {
+  public triggerBeatSynthVoice(
+    voiceKey: BeatVoiceKey,
+    time?: number,
+    gateDurationSec?: number,
+    isTied: boolean = false,
+    midiNoteOverride?: number
+  ): void {
     const ctx = this.ensureInitialized();
     if (ctx.state === 'suspended') {
       void ctx.resume();
     }
     if (!this.isPlaying && this.masterGain) {
       const now = ctx.currentTime;
+      const holdDur = Math.max(0.45, gateDurationSec ?? 0.35);
       this.masterGain.gain.cancelScheduledValues(now);
       this.masterGain.gain.setValueAtTime(this.patchRef.masterVol, now);
-      this.masterGain.gain.setTargetAtTime(0.0, now + 0.35, 0.05);
+      this.masterGain.gain.setTargetAtTime(0.0, now + holdDur + 0.15, 0.05);
     }
     if (!this.directChannels) return;
     const t = time ?? ctx.currentTime;
     const cfg = this.patchRef.beatVoices[voiceKey];
+    const meta =
+      AETHER_TRACK_META.find((m) => m.key === voiceKey) ?? AETHER_TRACK_META[0];
     if (!cfg) return;
 
-    const osc = ctx.createOscillator();
-    osc.type = cfg.wave;
-
-    const startFreq = cfg.freq * (1 + cfg.pEnvAmt * 3.8);
-    osc.frequency.setValueAtTime(startFreq, t);
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(24, cfg.freq),
-      t + Math.max(0.008, cfg.pEnvDec)
-    );
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = cfg.filterType;
-    const envTargetCut = Math.min(
-      16000,
-      Math.max(40, cfg.cutoff + cfg.filtEnv)
-    );
-    filter.frequency.setValueAtTime(envTargetCut, t);
-    filter.frequency.exponentialRampToValueAtTime(
-      Math.max(40, cfg.cutoff),
-      t + Math.max(0.02, cfg.decay)
-    );
-    filter.Q.setValueAtTime(cfg.res, t);
-
-    const vca = ctx.createGain();
-    const totalDur = cfg.attack + cfg.decay + cfg.release;
-    const beatMixLvl = this.patchRef.params.mixer?.ch2Beat ?? 0.72;
-    const peak = 0.55 * beatMixLvl;
-
-    vca.gain.setValueAtTime(0.0001, t);
-    vca.gain.linearRampToValueAtTime(peak, t + Math.max(0.001, cfg.attack));
-    vca.gain.exponentialRampToValueAtTime(
-      Math.max(0.0001, peak * cfg.sustain + 0.0001),
-      t + cfg.attack + cfg.decay
-    );
-    vca.gain.exponentialRampToValueAtTime(0.0001, t + totalDur);
-
-    osc.connect(filter);
-
-    if (cfg.noiseMix > 0.02 && this.noiseBuffers) {
-      const nSrc = ctx.createBufferSource();
-      nSrc.buffer = this.noiseBuffers.white;
-      const nGain = ctx.createGain();
-      nGain.gain.value = cfg.noiseMix * 0.6;
-      nSrc.connect(nGain);
-      nGain.connect(filter);
-      nSrc.start(t);
-      nSrc.stop(t + totalDur + 0.02);
+    // Resolve fundamental frequency (including sequencer step pitch + external PTCH CV)
+    const pitchCvOffset = this.computeCvSumForJack('beats:ptchCv') * 12;
+    let baseFreq = cfg.freq;
+    if (midiNoteOverride !== undefined) {
+      if (!meta.isDrum) {
+        baseFreq = aetherMidiToFreq(midiNoteOverride + pitchCvOffset);
+      } else {
+        const semiDelta =
+          midiNoteOverride - meta.defaultMidiNote + pitchCvOffset;
+        baseFreq = cfg.freq * Math.pow(2, semiDelta / 12);
+      }
+    } else if (Math.abs(pitchCvOffset) > 0.01) {
+      baseFreq = cfg.freq * Math.pow(2, pitchCvOffset / 12);
     }
 
-    filter.connect(vca);
+    const prevFreq =
+      this.lastMonophonicFreqByTrack[meta.index] || baseFreq;
+    this.lastMonophonicFreqByTrack[meta.index] = baseFreq;
+
+    const glideSec =
+      (cfg.voice?.glideTime ?? 0) > 0
+        ? (cfg.voice?.glideTime ?? 0) / 1000
+        : 0;
+    const slopCents =
+      (Math.random() * 2 - 1) * (cfg.voice?.analogSlop ?? 0.15) * 8;
+
+    // Filter + Tube Saturation Drive
+    const filtCvBoost = this.computeCvSumForJack('beats:filtCv') * 2800;
+    const cutoff = Math.min(
+      18000,
+      Math.max(40, (cfg.filter?.cutoff ?? cfg.cutoff) + filtCvBoost)
+    );
+    const resonance = Math.min(
+      18,
+      Math.max(0.5, cfg.filter?.resonance ?? cfg.res)
+    );
+    const driveAmt = cfg.filter?.drive ?? cfg.drive ?? 0.25;
+    const envDepthHz =
+      cfg.filter?.envDepth !== undefined
+        ? cfg.filter.envDepth * 4200
+        : cfg.filtEnv;
+
+    const filter = ctx.createBiquadFilter();
+    const fType = cfg.filter?.type ?? 'lp24';
+    filter.type =
+      fType === 'hp12' || cfg.filterType === 'highpass'
+        ? 'highpass'
+        : fType === 'bp12' || cfg.filterType === 'bandpass'
+          ? 'bandpass'
+          : fType === 'notch'
+            ? 'notch'
+            : 'lowpass';
+
+    const attackSec = Math.max(0.002, cfg.ampEnv?.attack ?? cfg.attack);
+    const decaySec = Math.max(0.03, cfg.ampEnv?.decay ?? cfg.decay);
+    const releaseSec = Math.max(0.03, cfg.ampEnv?.release ?? cfg.release);
+    // Multi-beat extended notes automatically sustain at a rich audible level (>= 0.74)
+    const rawSustain = cfg.ampEnv?.sustain ?? cfg.sustain;
+    const sustainLvl = isTied
+      ? Math.max(0.74, rawSustain)
+      : meta.isDrum
+        ? Math.max(0.001, rawSustain * 0.4)
+        : Math.max(0.05, rawSustain);
+
+    const effectiveGateSec =
+      gateDurationSec ?? (meta.isDrum ? attackSec + decaySec : 0.25);
+    const noteOffTime =
+      meta.isDrum && !isTied
+        ? t + attackSec + decaySec
+        : t + Math.max(effectiveGateSec, attackSec + 0.02);
+    const stopTime = noteOffTime + releaseSec + 0.04;
+
+    const envTargetCut = Math.min(
+      18000,
+      Math.max(45, cutoff + envDepthHz)
+    );
+    const filtAtt = Math.max(0.002, cfg.filterEnv?.attack ?? 0.003);
+    const filtDec = Math.max(0.03, cfg.filterEnv?.decay ?? decaySec);
+
+    filter.frequency.setValueAtTime(cutoff, t);
+    filter.frequency.linearRampToValueAtTime(envTargetCut, t + filtAtt);
+    if (isTied) {
+      const heldCutoff = Math.min(
+        18000,
+        Math.max(cutoff, cutoff + (envTargetCut - cutoff) * 0.68)
+      );
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(45, heldCutoff),
+        t + filtAtt + filtDec
+      );
+      filter.frequency.setValueAtTime(Math.max(45, heldCutoff), noteOffTime);
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(45, cutoff),
+        stopTime
+      );
+    } else {
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(45, cutoff),
+        t + filtAtt + filtDec
+      );
+    }
+    filter.Q.setValueAtTime(resonance, t);
+
+    let postFilterNode: AudioNode = filter;
+    let driveShaper: WaveShaperNode | null = null;
+    if (driveAmt > 0.05) {
+      driveShaper = ctx.createWaveShaper();
+      driveShaper.curve = makeTubeCurve(driveAmt);
+      driveShaper.oversample = this.patchRef.ecoMode ? 'none' : '2x';
+      filter.connect(driveShaper);
+      postFilterNode = driveShaper;
+    }
+
+    const vca = ctx.createGain();
+    const beatMixLvl = this.patchRef.params.mixer?.ch2Beat ?? 0.76;
+    const peak = (meta.isDrum ? 0.56 : 0.38) * beatMixLvl;
+
+    vca.gain.setValueAtTime(0.0001, t);
+    vca.gain.linearRampToValueAtTime(peak, t + attackSec);
+    if (meta.isDrum && !isTied) {
+      vca.gain.exponentialRampToValueAtTime(0.0001, noteOffTime);
+    } else {
+      const decEnd = Math.min(noteOffTime, t + attackSec + decaySec);
+      vca.gain.exponentialRampToValueAtTime(
+        Math.max(0.0001, peak * sustainLvl),
+        decEnd
+      );
+      vca.gain.setValueAtTime(
+        Math.max(0.0001, peak * sustainLvl),
+        noteOffTime
+      );
+      vca.gain.exponentialRampToValueAtTime(0.0001, noteOffTime + releaseSec);
+    }
+
+    postFilterNode.connect(vca);
     if (voiceKey === 'kick') {
       vca.connect(this.directChannels.kick.input);
     }
     vca.connect(this.directChannels.beatBus.input);
 
-    // Dynamic Virtual Eurorack Patch Routing for individual voice outs (`beats:kickOut`, etc.) & `beats:mixOut`
-    const voiceJackId = `beats:${voiceKey}Out`;
+    // Dynamic Virtual Eurorack Patch Routing for all 8 individual track outs (`beats:kickOut`..`beats:arpOut`) & `beats:mixOut`
+    const voiceJackId = meta.audioOutId;
     for (const cable of this.patchRef.cables) {
-      if (cable.type === 'audio' && (cable.from === voiceJackId || cable.from === 'beats:mixOut')) {
+      if (
+        cable.type === 'audio' &&
+        (cable.from === voiceJackId || cable.from === 'beats:mixOut')
+      ) {
         const destNode = this.resolveAudioInputNode(cable.to);
         if (destNode) {
           const cableAtten = ctx.createGain();
@@ -1172,13 +1345,174 @@ export class Aether8AudioEngine {
       }
     }
 
-    osc.start(t);
-    osc.stop(t + totalDur + 0.02);
-    osc.onended = () => {
-      osc.disconnect();
-      filter.disconnect();
-      vca.disconnect();
+    const activeSources: AudioScheduledSourceNode[] = [];
+    const osc1Cfg = cfg.osc1 ?? {
+      wave: cfg.wave,
+      coarse: 0,
+      fine: 0,
+      pwm: 0.5,
+      level: 0.9,
     };
+    const osc2Cfg = cfg.osc2 ?? {
+      wave: 'triangle',
+      coarse: 0,
+      fine: 6,
+      fmDepth: cfg.pEnvAmt * 0.4,
+      ringMod: 0,
+      hardSync: false,
+      level: 0.4,
+    };
+
+    // OSC 1 (with Unison / SuperSaw / Pitch Env / Glide)
+    if (osc1Cfg.level > 0.01) {
+      const unisonCount =
+        osc1Cfg.wave === 'supersaw' || cfg.voice?.mode === 'unison'
+          ? Math.min(3, Math.max(2, cfg.voice?.unisonVoices ?? 2))
+          : 1;
+
+      for (let u = 0; u < unisonCount; u++) {
+        const osc1 = ctx.createOscillator();
+        const osc1Gain = ctx.createGain();
+        osc1.type =
+          osc1Cfg.wave === 'supersaw'
+            ? 'sawtooth'
+            : osc1Cfg.wave === 'pwm'
+              ? 'square'
+              : osc1Cfg.wave;
+
+        const targetFreq =
+          baseFreq * Math.pow(2, (osc1Cfg.coarse || 0) / 12);
+        const pEnvAmt = cfg.pEnvAmt ?? 0;
+        const pEnvDec = Math.max(0.008, cfg.pEnvDec ?? 0.06);
+
+        if (meta.isDrum && pEnvAmt > 0.02) {
+          const startFreq = targetFreq * (1 + pEnvAmt * 3.6);
+          osc1.frequency.setValueAtTime(startFreq, t);
+          osc1.frequency.exponentialRampToValueAtTime(
+            Math.max(24, targetFreq),
+            t + pEnvDec
+          );
+        } else if (glideSec > 0) {
+          osc1.frequency.setValueAtTime(prevFreq, t);
+          osc1.frequency.exponentialRampToValueAtTime(
+            Math.max(24, targetFreq),
+            t + glideSec
+          );
+        } else {
+          osc1.frequency.setValueAtTime(Math.max(24, targetFreq), t);
+        }
+
+        const spreadDetune =
+          unisonCount > 1
+            ? (u - (unisonCount - 1) / 2) * (cfg.voice?.unisonDetune ?? 14)
+            : 0;
+        osc1.detune.setValueAtTime(
+          (osc1Cfg.fine || 0) + spreadDetune + slopCents,
+          t
+        );
+
+        osc1Gain.gain.value = osc1Cfg.level / Math.sqrt(unisonCount);
+        osc1.connect(osc1Gain);
+        osc1Gain.connect(filter);
+        osc1.start(t);
+        osc1.stop(stopTime);
+        activeSources.push(osc1);
+
+        // OSC 2 (Secondary Oscillator + Cross-FM onto OSC 1)
+        if (
+          u === 0 &&
+          (osc2Cfg.level > 0.01 || (osc2Cfg.fmDepth ?? 0) > 0.01)
+        ) {
+          const osc2 = ctx.createOscillator();
+          osc2.type =
+            osc2Cfg.wave === 'supersaw'
+              ? 'sawtooth'
+              : osc2Cfg.wave === 'pwm'
+                ? 'square'
+                : osc2Cfg.wave;
+          const osc2Freq =
+            baseFreq * Math.pow(2, (osc2Cfg.coarse || 0) / 12);
+          osc2.frequency.setValueAtTime(Math.max(24, osc2Freq), t);
+          osc2.detune.setValueAtTime(osc2Cfg.fine || 0, t);
+
+          if ((osc2Cfg.fmDepth ?? 0) > 0.01) {
+            const fmGain = ctx.createGain();
+            fmGain.gain.setValueAtTime(
+              osc2Cfg.fmDepth * baseFreq * 2.4,
+              t
+            );
+            osc2.connect(fmGain);
+            fmGain.connect(osc1.frequency);
+          }
+
+          if (osc2Cfg.level > 0.01) {
+            const osc2Gain = ctx.createGain();
+            osc2Gain.gain.value = osc2Cfg.level * 0.7;
+            osc2.connect(osc2Gain);
+            osc2Gain.connect(filter);
+          }
+
+          osc2.start(t);
+          osc2.stop(stopTime);
+          activeSources.push(osc2);
+        }
+      }
+    }
+
+    // SUB 1 (-12 semitones)
+    const sub1Lvl = cfg.sub1?.level ?? 0;
+    if (sub1Lvl > 0.01) {
+      const sub1 = ctx.createOscillator();
+      const sub1Gain = ctx.createGain();
+      sub1.type = cfg.sub1?.wave ?? 'sine';
+      sub1.frequency.setValueAtTime(Math.max(20, baseFreq * 0.5), t);
+      sub1Gain.gain.value = sub1Lvl * 0.65;
+      sub1.connect(sub1Gain);
+      sub1Gain.connect(filter);
+      sub1.start(t);
+      sub1.stop(stopTime);
+      activeSources.push(sub1);
+    }
+
+    // SUB 2 (-24, -12, or +7 semitones)
+    const sub2Lvl = cfg.sub2?.level ?? 0;
+    if (sub2Lvl > 0.01) {
+      const sub2 = ctx.createOscillator();
+      const sub2Gain = ctx.createGain();
+      sub2.type = cfg.sub2?.wave ?? 'triangle';
+      const ratio = Math.pow(2, (cfg.sub2?.semitoneOffset ?? -24) / 12);
+      sub2.frequency.setValueAtTime(Math.max(20, baseFreq * ratio), t);
+      sub2Gain.gain.value = sub2Lvl * 0.5;
+      sub2.connect(sub2Gain);
+      sub2Gain.connect(filter);
+      sub2.start(t);
+      sub2.stop(stopTime);
+      activeSources.push(sub2);
+    }
+
+    // NOISE GENERATOR
+    const noiseLvl = Math.max(cfg.noise?.level ?? 0, cfg.noiseMix ?? 0);
+    if (noiseLvl > 0.015 && this.noiseBuffers) {
+      const nSrc = ctx.createBufferSource();
+      const nColor = cfg.noise?.type ?? 'white';
+      nSrc.buffer = this.noiseBuffers[nColor] ?? this.noiseBuffers.white;
+      nSrc.loop = true;
+      const nGain = ctx.createGain();
+      nGain.gain.value = noiseLvl * 0.65;
+      nSrc.connect(nGain);
+      nGain.connect(filter);
+      nSrc.start(t);
+      nSrc.stop(stopTime);
+      activeSources.push(nSrc);
+    }
+
+    if (activeSources.length > 0) {
+      activeSources[0].onended = () => {
+        filter.disconnect();
+        if (driveShaper) driveShaper.disconnect();
+        vca.disconnect();
+      };
+    }
 
     // Update Beat Envelope Follower & trigger `BEAT PUMP` sidechain ducking
     this.beatEnvValue = 1.0;

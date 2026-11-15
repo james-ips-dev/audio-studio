@@ -3,6 +3,7 @@ import { RotaryKnob } from '../../../../shared-ui/RotaryKnob';
 import type { GrooveboxAudioEngine } from '../../audio/GrooveboxAudioEngine';
 import {
   applyBeginnerMacroToSynth,
+  applyPresetItemToSynth,
   TRACK_PRESET_BANKS,
 } from '../../presets/factoryPresets';
 import type {
@@ -213,6 +214,18 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
     onAuditionHit(track.index);
   };
 
+  const handleSelectPresetByName = (presetName: string) => {
+    const bank = TRACK_PRESET_BANKS[track.index] ?? [];
+    const chosen = bank.find((p) => p.name === presetName);
+    if (!chosen) return;
+    onUpdateTrackSynth(
+      track.index,
+      (prev) => applyPresetItemToSynth(prev, chosen),
+      chosen.name
+    );
+    onAuditionHit(track.index);
+  };
+
   const handleCyclePreset = (dir: -1 | 1) => {
     const bank = TRACK_PRESET_BANKS[track.index] ?? [];
     if (bank.length === 0) return;
@@ -222,19 +235,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
 
     onUpdateTrackSynth(
       track.index,
-      (prev) => {
-        let next = { ...prev };
-        for (const [k, v] of Object.entries(chosen.overrides)) {
-          if (v !== undefined) {
-            next = applyBeginnerMacroToSynth(
-              next,
-              k as keyof ProSynthConfig['beginnerMacros'],
-              v
-            );
-          }
-        }
-        return next;
-      },
+      (prev) => applyPresetItemToSynth(prev, chosen),
       chosen.name
     );
     onAuditionHit(track.index);
@@ -276,9 +277,45 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
                 >
                   ◀
                 </button>
-                <span className="px-2 font-studio-mono text-[11px] font-bold text-white truncate max-w-[130px]">
-                  {track.presetName}
-                </span>
+                <select
+                  aria-label="Track Synth Preset"
+                  value={track.presetName}
+                  onChange={(e) => handleSelectPresetByName(e.target.value)}
+                  className="bg-transparent px-1.5 py-0.5 font-studio-mono text-[11px] font-bold text-white max-w-[160px] truncate cursor-pointer"
+                >
+                  <optgroup
+                    label="🌱 Play Mode Presets (10)"
+                    className="bg-[#12151E] text-rose-300"
+                  >
+                    {(TRACK_PRESET_BANKS[track.index] ?? [])
+                      .filter((p) => p.modeTag === 'beginner')
+                      .map((p) => (
+                        <option
+                          key={p.name}
+                          value={p.name}
+                          className="bg-[#12151E] text-white"
+                        >
+                          {p.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup
+                    label="🎛️ Studio Pro Presets (10)"
+                    className="bg-[#12151E] text-sky-300"
+                  >
+                    {(TRACK_PRESET_BANKS[track.index] ?? [])
+                      .filter((p) => p.modeTag === 'pro')
+                      .map((p) => (
+                        <option
+                          key={p.name}
+                          value={p.name}
+                          className="bg-[#12151E] text-white"
+                        >
+                          {p.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                </select>
                 <button
                   type="button"
                   onClick={() => handleCyclePreset(1)}
@@ -517,6 +554,61 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
             >
               {track.name} PRO SYNTH
             </span>
+            <div className="flex items-center bg-black/60 rounded border border-white/15">
+              <button
+                type="button"
+                onClick={() => handleCyclePreset(-1)}
+                className="px-1 py-0.5 text-[10px] text-gray-300 hover:text-white cursor-pointer"
+              >
+                ◀
+              </button>
+              <select
+                aria-label="Pro Track Synth Preset"
+                value={track.presetName}
+                onChange={(e) => handleSelectPresetByName(e.target.value)}
+                className="bg-transparent px-1 py-0.5 font-studio-mono text-[10px] font-bold text-amber-300 max-w-[140px] truncate cursor-pointer"
+              >
+                <optgroup
+                  label="🎛️ Studio Pro Presets (10)"
+                  className="bg-[#12151E] text-sky-300"
+                >
+                  {(TRACK_PRESET_BANKS[track.index] ?? [])
+                    .filter((p) => p.modeTag === 'pro')
+                    .map((p) => (
+                      <option
+                        key={p.name}
+                        value={p.name}
+                        className="bg-[#12151E] text-white"
+                      >
+                        {p.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup
+                  label="🌱 Play Mode Presets (10)"
+                  className="bg-[#12151E] text-rose-300"
+                >
+                  {(TRACK_PRESET_BANKS[track.index] ?? [])
+                    .filter((p) => p.modeTag === 'beginner')
+                    .map((p) => (
+                      <option
+                        key={p.name}
+                        value={p.name}
+                        className="bg-[#12151E] text-white"
+                      >
+                        {p.name}
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+              <button
+                type="button"
+                onClick={() => handleCyclePreset(1)}
+                className="px-1 py-0.5 text-[10px] text-gray-300 hover:text-white cursor-pointer"
+              >
+                ▶
+              </button>
+            </div>
             <select
               aria-label="Voice Mode"
               value={s.voice.mode}

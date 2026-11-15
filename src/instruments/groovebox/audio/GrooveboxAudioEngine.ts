@@ -141,6 +141,7 @@ export class GrooveboxAudioEngine {
   private currentGlobalStep: number = 0;
   private loopCycleCount: number = 0;
   private prevStepTriggeredByTrack: boolean[] = Array(8).fill(false);
+  private sustainedStepsRemaining: number[] = Array(8).fill(0);
   private lastMonophonicFreqByTrack: number[] = Array(8).fill(110);
 
   private playheadListeners: Set<StepPlayheadListener> = new Set();
@@ -602,6 +603,7 @@ export class GrooveboxAudioEngine {
     this.syncMixerAndMasterGraph();
     this.currentGlobalStep = 0;
     this.loopCycleCount = 0;
+    this.sustainedStepsRemaining = Array(8).fill(0);
     this.nextStepTime = ctx.currentTime + 0.03;
 
     const timerIntervalMs = this.projectRef.ecoMode ? 40 : 25;
@@ -618,6 +620,7 @@ export class GrooveboxAudioEngine {
       this.schedulerTimer = null;
     }
     this.currentGlobalStep = 0;
+    this.sustainedStepsRemaining = Array(8).fill(0);
     this.syncMixerAndMasterGraph();
     this.notifyPlayhead(0, Array(8).fill(0));
   }
@@ -748,6 +751,13 @@ export class GrooveboxAudioEngine {
       const localStep = globalStep % polyLen;
       trackStepPositions[t] = localStep;
 
+      // If an earlier step on this track is still sustaining across multiple steps,
+      // hold its continuous tie without retriggering on covered steps.
+      if (this.sustainedStepsRemaining[t] > 0) {
+        this.sustainedStepsRemaining[t]--;
+        continue;
+      }
+
       const stepData: StepData | undefined = seq.steps[localStep];
       if (!stepData || !stepData.active) {
         this.prevStepTriggeredByTrack[t] = false;
@@ -778,6 +788,14 @@ export class GrooveboxAudioEngine {
           ? 3
           : stepData.ratchet || 1;
 
+      const maxDurSteps = Math.max(
+        1,
+        ...stepData.notes.map((n) => n.durationSteps || 1)
+      );
+      if (maxDurSteps > 1 && effectiveRatchet === 1) {
+        this.sustainedStepsRemaining[t] = maxDurSteps - 1;
+      }
+
       const subStepDur = stepSec / effectiveRatchet;
       for (let r = 0; r < effectiveRatchet; r++) {
         const rVelScale = this.computeRatchetVelocityScale(
@@ -792,10 +810,14 @@ export class GrooveboxAudioEngine {
           const strumOffsetSec =
             t === 6 ? (nIdx * (trkConfig.chordStrumMs || 0)) / 1000 : 0;
 
+          const durSteps = noteEv.durationSteps || 1;
           const gateDurationSec =
             effectiveRatchet > 1
               ? subStepDur * 0.85
-              : Math.max(0.04, (noteEv.durationSteps || 1) * stepSec * 0.92);
+              : Math.max(
+                  0.04,
+                  durSteps * stepSec * (durSteps > 1 ? 0.97 : 0.92)
+                );
 
           this.triggerTrackNote(
             t,
@@ -1000,6 +1022,8 @@ export class GrooveboxAudioEngine {
     const slopCents =
       (Math.random() * 2 - 1) * (synth.voice.analogSlop || 0) * 8;
 
+    const isTied = (noteEvent.durationSteps || 1) > 1;
+
     // Specialized Kick synthesis (Track 0)
     if (trackIndex === 0) {
       const kickOsc = ctx.createOscillator();
@@ -1029,10 +1053,22 @@ export class GrooveboxAudioEngine {
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(Math.max(120, cutoff * 4), startTime);
 
-      const totalDur = Math.max(0.1, ampDecay);
+      const totalDur = isTied
+        ? Math.max(gateDurationSec, ampDecay)
+        : Math.max(0.1, ampDecay);
       vca.gain.setValueAtTime(0.0001, startTime);
       vca.gain.linearRampToValueAtTime(0.95 * vel, startTime + 0.003);
-      vca.gain.exponentialRampToValueAtTime(0.0001, startTime + totalDur);
+      if (isTied) {
+        const holdEnd = startTime + Math.max(0.04, gateDurationSec * 0.88);
+        vca.gain.exponentialRampToValueAtTime(
+          0.74 * vel,
+          startTime + Math.min(0.08, gateDurationSec * 0.3)
+        );
+        vca.gain.setValueAtTime(0.74 * vel, holdEnd);
+        vca.gain.exponentialRampToValueAtTime(0.0001, startTime + totalDur + 0.04);
+      } else {
+        vca.gain.exponentialRampToValueAtTime(0.0001, startTime + totalDur);
+      }
 
       kickOsc.connect(filter);
       clickOsc.connect(clickGain);
@@ -1042,7 +1078,7 @@ export class GrooveboxAudioEngine {
 
       kickOsc.start(startTime);
       clickOsc.start(startTime);
-      kickOsc.stop(startTime + totalDur + 0.02);
+      kickOsc.stop(startTime + totalDur + 0.06);
       clickOsc.stop(startTime + 0.03);
       kickOsc.onended = () => {
         kickOsc.disconnect();
@@ -1075,6 +1111,25 @@ export class GrooveboxAudioEngine {
       )
     );
 
+    const vca = ctx.createGain();
+    const attackSec = Math.max(0.002, synth.ampEnv.attack);
+    const decaySec = Math.max(0.03, ampDecay);
+    // Multi-beat extended notes automatically sustain at a rich audible level (>= 0.72)
+    // across all covered steps without dying out after the first step.
+    const sustainLvl = isTied
+      ? Math.max(0.72, synth.ampEnv.sustain)
+      : trk.isDrum
+        ? 0.0001
+        : Math.max(0.001, synth.ampEnv.sustain);
+    const releaseSec = Math.max(0.03, synth.ampEnv.release);
+
+    const peakGain = (trk.isDrum ? 0.55 : 0.34) * vel;
+    const noteOffTime =
+      trk.isDrum && !isTied
+        ? startTime + attackSec + decaySec
+        : startTime + Math.max(gateDurationSec, attackSec + 0.02);
+    const stopTime = noteOffTime + releaseSec + 0.03;
+
     filter.frequency.setValueAtTime(
       Math.min(18000, Math.max(40, cutoff)),
       startTime
@@ -1083,36 +1138,42 @@ export class GrooveboxAudioEngine {
       envTargetCutoff,
       startTime + Math.max(0.003, synth.filterEnv.attack)
     );
-    filter.frequency.exponentialRampToValueAtTime(
-      Math.max(45, cutoff),
-      startTime +
-        Math.max(0.02, synth.filterEnv.attack + synth.filterEnv.decay)
-    );
+    if (isTied) {
+      const heldCutoff = Math.min(
+        18000,
+        Math.max(cutoff, cutoff + (envTargetCutoff - cutoff) * 0.65)
+      );
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(45, heldCutoff),
+        startTime +
+          Math.max(0.02, synth.filterEnv.attack + synth.filterEnv.decay)
+      );
+      filter.frequency.setValueAtTime(Math.max(45, heldCutoff), noteOffTime);
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(45, cutoff),
+        stopTime
+      );
+    } else {
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(45, cutoff),
+        startTime +
+          Math.max(0.02, synth.filterEnv.attack + synth.filterEnv.decay)
+      );
+    }
     filter.Q.setValueAtTime(
       Math.min(18, Math.max(0.5, resonance)),
       startTime
     );
 
-    const vca = ctx.createGain();
-    const attackSec = Math.max(0.002, synth.ampEnv.attack);
-    const decaySec = Math.max(0.03, ampDecay);
-    const sustainLvl = trk.isDrum ? 0.0001 : Math.max(0.001, synth.ampEnv.sustain);
-    const releaseSec = Math.max(0.03, synth.ampEnv.release);
-
-    const peakGain = (trk.isDrum ? 0.55 : 0.34) * vel;
-    const noteOffTime = trk.isDrum
-      ? startTime + attackSec + decaySec
-      : startTime + Math.max(gateDurationSec, attackSec + 0.02);
-    const stopTime = noteOffTime + releaseSec + 0.03;
-
     vca.gain.setValueAtTime(0.0001, startTime);
     vca.gain.linearRampToValueAtTime(peakGain, startTime + attackSec);
-    if (trk.isDrum) {
+    if (trk.isDrum && !isTied) {
       vca.gain.exponentialRampToValueAtTime(0.0001, noteOffTime);
     } else {
+      const decEnd = Math.min(noteOffTime, startTime + attackSec + decaySec);
       vca.gain.exponentialRampToValueAtTime(
         Math.max(0.0001, peakGain * sustainLvl),
-        startTime + attackSec + decaySec
+        decEnd
       );
       vca.gain.setValueAtTime(
         Math.max(0.0001, peakGain * sustainLvl),

@@ -28,7 +28,10 @@ import { Row3PulseModFxMixer } from './components/Row3PulseModFxMixer';
 import { Row4BiosphereLab } from './components/Row4BiosphereLab';
 import {
   AETHER8_FACTORY_PATCHES,
+  AETHER_DRONE_PRESETS,
+  AETHER_TRACK_META,
   createXoxPatternFromStyle,
+  normalizeAether8Patch,
 } from './presets/factoryPatches';
 import type {
   Aether8PatchV4,
@@ -52,7 +55,7 @@ function clonePatch(p: Aether8PatchV4): Aether8PatchV4 {
 
 const INITIAL_TELEMETRY: Aether8Telemetry = {
   globalStep: 0,
-  xoxTrackSteps: [0, 0, 0, 0],
+  xoxTrackSteps: [0, 0, 0, 0, 0, 0, 0, 0],
   euclidStep: 0,
   lfo1Val: 0,
   lfo2Val: 0,
@@ -143,7 +146,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
       if (!active) return;
       setSavedPatches(list);
       if (auto && auto.xoxPatterns) {
-        setPatch(auto);
+        setPatch(normalizeAether8Patch(auto));
       }
     })();
     return () => {
@@ -310,7 +313,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
     async (file: File) => {
       try {
         const envelope = await storage.importPatchFromFile(file);
-        setPatch(envelope.data);
+        setPatch(normalizeAether8Patch(envelope.data));
       } catch (err) {
         if (err instanceof IncompatiblePatchError) {
           setErrorModalMsg(err.message);
@@ -360,7 +363,9 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
         onToggleModMatrixDrawer={() => setModMatrixOpen((o) => !o)}
         onClearCables={() => setConfirmUnplugOpen(true)}
         onSaveToVault={handleSaveToVault}
-        onLoadSavedPatch={(rec) => setPatch(clonePatch(rec.payload))}
+        onLoadSavedPatch={(rec) =>
+          setPatch(normalizeAether8Patch(clonePatch(rec.payload)))
+        }
         onDeleteSavedPatch={handleDeleteSavedPatch}
         onExportJson={() => {
           const safeName = (patch.name ?? 'aether8-patch')
@@ -489,6 +494,12 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
                   const bar1 = tr.slice(0, 16);
                   return [...bar1, ...bar1, ...bar1, ...bar1];
                 });
+                const nextNotes = pat.notes
+                  ? pat.notes.map((tr) => {
+                      const bar1 = tr.slice(0, 16);
+                      return [...bar1, ...bar1, ...bar1, ...bar1];
+                    })
+                  : undefined;
                 return {
                   ...p,
                   xoxPatterns: {
@@ -496,6 +507,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
                     [p.activePattern]: {
                       ...pat,
                       steps: nextSteps,
+                      notes: nextNotes,
                     },
                   },
                 };
@@ -517,9 +529,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
             onSetTrackPolyLength={(trackIdx, len) =>
               setPatch((p) => {
                 const pat = p.xoxPatterns[p.activePattern];
-                const nextLens: [number, number, number, number] = [
-                  ...pat.trackLengths,
-                ];
+                const nextLens = [...pat.trackLengths];
                 nextLens[trackIdx] = len;
                 return {
                   ...p,
@@ -533,16 +543,25 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
                 };
               })
             }
-            onToggleXoxStep={(trackIdx, absStepIdx) =>
+            onSetXoxStepDuration={(trackIdx, absStepIdx, durationSteps) =>
               setPatch((p) => {
                 const pat = p.xoxPatterns[p.activePattern];
-                const nextSteps = pat.steps.map((tr, idx) =>
-                  idx === trackIdx
-                    ? tr.map((v, sIdx) =>
-                        sIdx === absStepIdx ? (v ? 0 : 1) : v
-                      )
-                    : tr
+                const clampedDur = Math.max(
+                  0,
+                  Math.min(16, Math.round(durationSteps))
                 );
+                const nextSteps = pat.steps.map((tr, idx) => {
+                  if (idx !== trackIdx) return tr;
+                  const copy = [...tr];
+                  copy[absStepIdx] = clampedDur;
+                  if (clampedDur > 1) {
+                    const maxStep = Math.min(64, absStepIdx + clampedDur);
+                    for (let c = absStepIdx + 1; c < maxStep; c++) {
+                      copy[c] = 0;
+                    }
+                  }
+                  return copy;
+                });
                 return {
                   ...p,
                   xoxPatterns: {
@@ -555,26 +574,50 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
                 };
               })
             }
+            onSetXoxStepNote={(trackIdx, absStepIdx, midiNote) =>
+              setPatch((p) => {
+                const pat = p.xoxPatterns[p.activePattern];
+                const baseNotes =
+                  pat.notes ??
+                  AETHER_TRACK_META.map((tm) =>
+                    Array(64).fill(tm.defaultMidiNote)
+                  );
+                const nextNotes = baseNotes.map((tr, idx) => {
+                  if (idx !== trackIdx) return tr;
+                  const copy = [...tr];
+                  copy[absStepIdx] = midiNote;
+                  return copy;
+                });
+                const nextSteps = pat.steps.map((tr, idx) => {
+                  if (idx !== trackIdx) return tr;
+                  if ((tr[absStepIdx] ?? 0) > 0) return tr;
+                  const copy = [...tr];
+                  copy[absStepIdx] = 1;
+                  return copy;
+                });
+                return {
+                  ...p,
+                  xoxPatterns: {
+                    ...p.xoxPatterns,
+                    [p.activePattern]: {
+                      ...pat,
+                      steps: nextSteps,
+                      notes: nextNotes,
+                    },
+                  },
+                };
+              })
+            }
             onToggleXoxMute={(trackIdx) =>
               setPatch((p) => {
-                const nextMuted: [boolean, boolean, boolean, boolean] = [
-                  p.xoxMuted[0],
-                  p.xoxMuted[1],
-                  p.xoxMuted[2],
-                  p.xoxMuted[3],
-                ];
+                const nextMuted = [...p.xoxMuted];
                 nextMuted[trackIdx] = !nextMuted[trackIdx];
                 return { ...p, xoxMuted: nextMuted };
               })
             }
             onToggleXoxNormLink={(trackIdx) =>
               setPatch((p) => {
-                const nextNorm: [boolean, boolean, boolean, boolean] = [
-                  p.xoxNormLink[0],
-                  p.xoxNormLink[1],
-                  p.xoxNormLink[2],
-                  p.xoxNormLink[3],
-                ];
+                const nextNorm = [...p.xoxNormLink];
                 nextNorm[trackIdx] = !nextNorm[trackIdx];
                 return { ...p, xoxNormLink: nextNorm };
               })
@@ -612,11 +655,34 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
             onSetChordVoicing={(chordType: ChordVoicingType) =>
               setPatch((p) => ({ ...p, chordType }))
             }
+            onSelectDronePreset={(presetName: string) => {
+              const found = AETHER_DRONE_PRESETS.find(
+                (dp) => dp.name === presetName
+              );
+              if (!found) return;
+              setPatch((p) => ({
+                ...p,
+                chordType: found.chordType,
+                dronePresetName: found.name,
+                params: {
+                  ...p.params,
+                  drone: {
+                    ...(p.params.drone ?? {}),
+                    baseFreq: found.baseFreq,
+                    driftDetune: found.driftDetune,
+                    subLevel: found.subLevel,
+                    waveFold: found.waveFold,
+                    fmIndex: found.fmIndex,
+                    swarmLevel: found.swarmLevel,
+                  },
+                },
+              }));
+            }}
             onSetNoiseColor={(noiseColor: NoiseSpectrumColor) =>
               setPatch((p) => ({ ...p, noiseColor }))
             }
             onSetFilterMode={(filterMode: ZdfFilterMode) =>
-              setPatch((p) => ({ ...p, filterMode }))
+              setPatch((p) => ({ ...p, filterType: filterMode }))
             }
             onUpdateModuleParam={handleUpdateModuleParam}
             onSelectJack={handleSelectJack}

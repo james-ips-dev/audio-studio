@@ -98,9 +98,14 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
   const [euclidOpen, setEuclidOpen] = useState(false);
   const [euclidPulses, setEuclidPulses] = useState(5);
   const [euclidRotation, setEuclidRotation] = useState(0);
+  const [dragExtendMode, setDragExtendMode] = useState(true);
 
-  // First-Cell Intent Lock Swipe State
+  // First-Cell Intent Lock Swipe State & Multi-Beat Tie Drag State
   const swipePaintIntentRef = useRef<boolean | null>(null);
+  const dragExtendOriginRef = useRef<{
+    trackIndex: number;
+    stepIndex: number;
+  } | null>(null);
 
   const activePattern =
     project.patterns[project.activePatternId] ??
@@ -181,6 +186,19 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
             title="Duplicate Bar 1 steps across Bars 2-4"
           >
             COPY B1→ALL
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDragExtendMode((v) => !v)}
+            className={`px-2 py-1 rounded font-studio-mono text-[10px] font-bold border transition-colors cursor-pointer ${
+              dragExtendMode
+                ? 'bg-amber-400/20 text-amber-300 border-amber-400/50'
+                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'
+            }`}
+            title="Toggle between Drag-to-Extend Multi-Beat Tie Notes vs Drag-to-Paint Individual Steps"
+          >
+            {dragExtendMode ? '↔ DRAG: EXTEND TIE' : '✏️ DRAG: PAINT STEPS'}
           </button>
         </div>
 
@@ -349,9 +367,11 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
         className="flex-1 min-h-0 flex flex-col justify-between gap-1 overflow-y-auto py-0.5"
         onPointerUp={() => {
           swipePaintIntentRef.current = null;
+          dragExtendOriginRef.current = null;
         }}
         onPointerLeave={() => {
           swipePaintIntentRef.current = null;
+          dragExtendOriginRef.current = null;
         }}
       >
         {project.tracks.map((trk) => {
@@ -447,16 +467,41 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
               {/* Right 16-Step Grid Row */}
               <div className="grid grid-cols-16 gap-1 h-7">
                 {Array.from({ length: 16 }, (_, cellIdx) => {
-                  const stepIdx = (barOffset + cellIdx) % (seq?.lengthSteps || 16);
+                  const polyLen = seq?.lengthSteps || 16;
+                  const stepIdx = (barOffset + cellIdx) % polyLen;
                   const step = seq?.steps[stepIdx];
                   const active = Boolean(step?.active);
+
+                  // Check if this step is covered by an earlier active step's multi-beat tie
+                  let tieSourceStepIdx: number | null = null;
+                  let isTieEnd = false;
+                  if (!active && seq) {
+                    for (let prevIdx = stepIdx - 1; prevIdx >= Math.max(0, stepIdx - 15); prevIdx--) {
+                      const prevStep = seq.steps[prevIdx];
+                      if (prevStep?.active) {
+                        const prevDur = Math.max(
+                          1,
+                          ...prevStep.notes.map((n) => n.durationSteps || 1)
+                        );
+                        if (prevIdx + prevDur > stepIdx) {
+                          tieSourceStepIdx = prevIdx;
+                          isTieEnd = prevIdx + prevDur - 1 === stepIdx;
+                        }
+                        break;
+                      }
+                    }
+                  }
+
+                  const isTiedContinuation = tieSourceStepIdx !== null;
                   const isPlayhead =
                     isPlaying &&
-                    currentGlobalStep % (seq?.lengthSteps || 16) === stepIdx &&
+                    currentGlobalStep % polyLen === stepIdx &&
                     Math.floor(currentGlobalStep / 16) === visibleBar;
                   const isPLockSelected =
                     selectedStep?.trackIndex === trk.index &&
-                    selectedStep?.stepIndex === stepIdx;
+                    (selectedStep?.stepIndex === stepIdx ||
+                      (tieSourceStepIdx !== null &&
+                        selectedStep?.stepIndex === tieSourceStepIdx));
                   const hasPLocks =
                     step && Object.keys(step.pLocks).length > 0;
                   const durationSteps = step?.notes[0]?.durationSteps ?? 1;
@@ -469,16 +514,101 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
                         e.preventDefault();
                         onSelectTrack(trk.index);
                         if (pLockLatch || e.altKey) {
-                          onSelectPLockStep(trk.index, stepIdx);
+                          onSelectPLockStep(
+                            trk.index,
+                            tieSourceStepIdx ?? stepIdx
+                          );
                           return;
                         }
+
+                        // Shift+Click extends the nearest preceding active step up to this step
+                        if (e.shiftKey && seq) {
+                          for (let pIdx = stepIdx - 1; pIdx >= 0; pIdx--) {
+                            if (seq.steps[pIdx]?.active) {
+                              const newDur = Math.min(16, stepIdx - pIdx + 1);
+                              onUpdateStepData(trk.index, pIdx, (prev) => ({
+                                ...prev,
+                                active: true,
+                                notes: prev.notes.map((n) => ({
+                                  ...n,
+                                  durationSteps: newDur,
+                                })),
+                              }));
+                              onSelectPLockStep(trk.index, pIdx);
+                              return;
+                            }
+                          }
+                        }
+
+                        // Clicking a tied continuation cell truncates or selects the source step
+                        if (tieSourceStepIdx !== null) {
+                          const srcIdx = tieSourceStepIdx;
+                          onUpdateStepData(trk.index, srcIdx, (prev) => ({
+                            ...prev,
+                            notes: prev.notes.map((n) => ({
+                              ...n,
+                              durationSteps: Math.max(1, stepIdx - srcIdx),
+                            })),
+                          }));
+                          onSelectPLockStep(trk.index, srcIdx);
+                          return;
+                        }
+
                         const targetState = !active;
-                        swipePaintIntentRef.current = targetState;
-                        onToggleStep(trk.index, stepIdx, targetState);
+                        if (dragExtendMode) {
+                          if (targetState) {
+                            onUpdateStepData(trk.index, stepIdx, (prev) => ({
+                              ...prev,
+                              active: true,
+                              notes: prev.notes.map((n) => ({
+                                ...n,
+                                durationSteps: 1,
+                              })),
+                            }));
+                            dragExtendOriginRef.current = {
+                              trackIndex: trk.index,
+                              stepIndex: stepIdx,
+                            };
+                          } else {
+                            // If already active with duration > 1, start dragging from it or toggle off
+                            onUpdateStepData(trk.index, stepIdx, (prev) => ({
+                              ...prev,
+                              active: false,
+                              notes: prev.notes.map((n) => ({
+                                ...n,
+                                durationSteps: 1,
+                              })),
+                            }));
+                            dragExtendOriginRef.current = null;
+                          }
+                        } else {
+                          swipePaintIntentRef.current = targetState;
+                          onToggleStep(trk.index, stepIdx, targetState);
+                        }
                         onSelectPLockStep(trk.index, stepIdx);
                       }}
                       onPointerEnter={() => {
-                        if (swipePaintIntentRef.current !== null && !pLockLatch) {
+                        if (pLockLatch) return;
+                        if (
+                          dragExtendMode &&
+                          dragExtendOriginRef.current &&
+                          dragExtendOriginRef.current.trackIndex === trk.index
+                        ) {
+                          const originIdx = dragExtendOriginRef.current.stepIndex;
+                          if (stepIdx >= originIdx) {
+                            const newDur = Math.min(16, stepIdx - originIdx + 1);
+                            onUpdateStepData(trk.index, originIdx, (prev) => ({
+                              ...prev,
+                              active: true,
+                              notes: prev.notes.map((n) => ({
+                                ...n,
+                                durationSteps: newDur,
+                              })),
+                            }));
+                          }
+                          return;
+                        }
+                        if (swipePaintIntentRef.current !== null) {
                           onToggleStep(
                             trk.index,
                             stepIdx,
@@ -489,29 +619,49 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
                       style={{
                         backgroundColor: active
                           ? trk.color
-                          : cellIdx % 4 === 0
-                            ? 'rgba(255,255,255,0.09)'
-                            : 'rgba(255,255,255,0.04)',
+                          : isTiedContinuation
+                            ? `${trk.color}55`
+                            : cellIdx % 4 === 0
+                              ? 'rgba(255,255,255,0.09)'
+                              : 'rgba(255,255,255,0.04)',
                         boxShadow: isPlayhead
                           ? `0 0 10px #FFFFFF`
                           : active
                             ? `0 0 8px ${trk.color}66`
-                            : 'none',
+                            : isTiedContinuation
+                              ? `inset 0 0 6px ${trk.color}55`
+                              : 'none',
                         borderColor: isPLockSelected
                           ? '#FBBF24'
                           : isPlayhead
                             ? '#FFFFFF'
-                            : 'rgba(255,255,255,0.08)',
+                            : isTiedContinuation
+                              ? trk.color
+                              : 'rgba(255,255,255,0.08)',
                       }}
                       className={`relative rounded transition-all flex items-center justify-center border cursor-pointer touch-none-control ${
-                        isPLockSelected ? 'ring-2 ring-amber-400' : ''
+                        isPLockSelected ? 'ring-1 ring-amber-400' : ''
                       }`}
                     >
                       {/* Note Name or Extendable Multi-Step Tie Badge */}
-                      {active && !trk.isDrum && step?.notes[0] && (
+                      {active && step?.notes[0] && (
                         <span className="font-studio-mono text-[8px] font-bold text-black leading-none truncate">
-                          {midiToNoteName(step.notes[0].midiNote)}
+                          {!trk.isDrum
+                            ? midiToNoteName(step.notes[0].midiNote)
+                            : durationSteps > 1
+                              ? 'TIE'
+                              : ''}
                           {durationSteps > 1 ? `═${durationSteps}` : ''}
+                        </span>
+                      )}
+
+                      {/* Connected Multi-Beat Tie Bar Continuation */}
+                      {isTiedContinuation && (
+                        <span
+                          className="font-studio-mono text-[9px] font-bold leading-none select-none"
+                          style={{ color: '#FFFFFF' }}
+                        >
+                          {isTieEnd ? '══►' : '═══'}
                         </span>
                       )}
 
@@ -535,19 +685,60 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
         })}
       </div>
 
-      {/* Pro Step Inspector Footer (Extendable Gate Length, Ratchets, Probability & Conditions) */}
-      {isPro && inspectedStepData && (
+      {/* Step Inspector & Multi-Beat Note Extension Footer (Visible in BOTH Play & Studio Modes) */}
+      {inspectedStepData && (
         <div className="pt-1 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[10px] font-studio-mono text-gray-300 shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-              STEP INSPECTOR: TRK {inspectedStepPos.trackIndex + 1} • STEP{' '}
+              TRK {inspectedStepPos.trackIndex + 1} • STEP{' '}
               {inspectedStepPos.stepIndex + 1}
             </span>
 
-            {/* Extendable Gate Duration (1..8 steps) */}
-            <label className="flex items-center gap-1">
-              <span className="text-gray-400">TIE LEN:</span>
+            {/* Quick Multi-Beat Note Length (Tie) Buttons + Selector */}
+            <div className="flex items-center gap-1 bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+              <span className="text-amber-300 font-bold">↔ NOTE TIE:</span>
+              {[
+                { steps: 1, label: '1S' },
+                { steps: 2, label: '2S' },
+                { steps: 4, label: '1 BEAT (4S)' },
+                { steps: 8, label: '2 BEATS (8S)' },
+                { steps: 12, label: '3 BEATS (12S)' },
+                { steps: 16, label: '1 BAR (16S)' },
+              ].map((preset) => {
+                const currentDur =
+                  inspectedStepData.notes[0]?.durationSteps ?? 1;
+                const isSelected =
+                  inspectedStepData.active && currentDur === preset.steps;
+                return (
+                  <button
+                    key={preset.steps}
+                    type="button"
+                    onClick={() => {
+                      onUpdateStepData(
+                        inspectedStepPos.trackIndex,
+                        inspectedStepPos.stepIndex,
+                        (prev) => ({
+                          ...prev,
+                          active: true,
+                          notes: prev.notes.map((n) => ({
+                            ...n,
+                            durationSteps: preset.steps,
+                          })),
+                        })
+                      );
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-400 text-black'
+                        : 'bg-white/5 text-gray-300 hover:bg-white/15'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
               <select
+                aria-label="Note Tie Length Steps"
                 value={inspectedStepData.notes[0]?.durationSteps ?? 1}
                 onChange={(e) => {
                   const dur = Number(e.target.value);
@@ -566,107 +757,117 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
                 }}
                 className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-white cursor-pointer"
               >
-                {[1, 2, 3, 4, 6, 8, 16].map((d) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16].map((d) => (
                   <option key={d} value={d} className="bg-[#12151E]">
-                    {d} {d === 1 ? 'Step' : 'Steps [●══]'}
+                    {d} {d === 1 ? 'Step' : 'Steps [●══►]'}
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
-            {/* Ratchet Subdivisions */}
-            <label className="flex items-center gap-1">
-              <span className="text-gray-400">RATCHET:</span>
-              <select
-                value={inspectedStepData.ratchet}
-                onChange={(e) => {
-                  const r = Number(e.target.value) as 1 | 2 | 3 | 4 | 6;
-                  onUpdateStepData(
-                    inspectedStepPos.trackIndex,
-                    inspectedStepPos.stepIndex,
-                    (prev) => ({ ...prev, ratchet: r })
-                  );
-                }}
-                className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-white cursor-pointer"
-              >
-                {RATCHET_VALUES.map((r) => (
-                  <option key={r} value={r} className="bg-[#12151E]">
-                    ×{r}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {isPro && (
+              <>
+                {/* Ratchet Subdivisions */}
+                <label className="flex items-center gap-1">
+                  <span className="text-gray-400">RATCHET:</span>
+                  <select
+                    value={inspectedStepData.ratchet}
+                    onChange={(e) => {
+                      const r = Number(e.target.value) as 1 | 2 | 3 | 4 | 6;
+                      onUpdateStepData(
+                        inspectedStepPos.trackIndex,
+                        inspectedStepPos.stepIndex,
+                        (prev) => ({ ...prev, ratchet: r })
+                      );
+                    }}
+                    className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-white cursor-pointer"
+                  >
+                    {RATCHET_VALUES.map((r) => (
+                      <option key={r} value={r} className="bg-[#12151E]">
+                        ×{r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            {/* Ratchet Curve */}
-            <select
-              aria-label="Ratchet Curve"
-              value={inspectedStepData.ratchetCurve}
-              onChange={(e) => {
-                const curve = e.target.value as RatchetCurve;
-                onUpdateStepData(
-                  inspectedStepPos.trackIndex,
-                  inspectedStepPos.stepIndex,
-                  (prev) => ({ ...prev, ratchetCurve: curve })
-                );
-              }}
-              className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-white cursor-pointer"
-            >
-              {RATCHET_CURVES.map((c) => (
-                <option key={c} value={c} className="bg-[#12151E]">
-                  {c.toUpperCase()}
-                </option>
-              ))}
-            </select>
+                {/* Ratchet Curve */}
+                <select
+                  aria-label="Ratchet Curve"
+                  value={inspectedStepData.ratchetCurve}
+                  onChange={(e) => {
+                    const curve = e.target.value as RatchetCurve;
+                    onUpdateStepData(
+                      inspectedStepPos.trackIndex,
+                      inspectedStepPos.stepIndex,
+                      (prev) => ({ ...prev, ratchetCurve: curve })
+                    );
+                  }}
+                  className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-white cursor-pointer"
+                >
+                  {RATCHET_CURVES.map((c) => (
+                    <option key={c} value={c} className="bg-[#12151E]">
+                      {c.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Trigger Probability */}
-            <label className="flex items-center gap-1">
-              <span className="text-gray-400">PROB:</span>
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={inspectedStepData.probability}
-                onChange={(e) => {
-                  const prob = Number(e.target.value);
-                  onUpdateStepData(
-                    inspectedStepPos.trackIndex,
-                    inspectedStepPos.stepIndex,
-                    (prev) => ({ ...prev, probability: prob })
-                  );
-                }}
-                className="w-16 accent-amber-400 cursor-pointer"
-              />
-              <span className="w-8 text-amber-300 font-bold">
-                {Math.round(inspectedStepData.probability * 100)}%
-              </span>
-            </label>
+          {isPro ? (
+            <div className="flex items-center gap-2">
+              {/* Trigger Probability */}
+              <label className="flex items-center gap-1">
+                <span className="text-gray-400">PROB:</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1}
+                  step={0.05}
+                  value={inspectedStepData.probability}
+                  onChange={(e) => {
+                    const prob = Number(e.target.value);
+                    onUpdateStepData(
+                      inspectedStepPos.trackIndex,
+                      inspectedStepPos.stepIndex,
+                      (prev) => ({ ...prev, probability: prob })
+                    );
+                  }}
+                  className="w-16 accent-amber-400 cursor-pointer"
+                />
+                <span className="w-8 text-amber-300 font-bold">
+                  {Math.round(inspectedStepData.probability * 100)}%
+                </span>
+              </label>
 
-            {/* Elektron Trig Condition */}
-            <label className="flex items-center gap-1">
-              <span className="text-gray-400">COND:</span>
-              <select
-                value={inspectedStepData.condition}
-                onChange={(e) => {
-                  const cond = e.target.value as TrigCondition;
-                  onUpdateStepData(
-                    inspectedStepPos.trackIndex,
-                    inspectedStepPos.stepIndex,
-                    (prev) => ({ ...prev, condition: cond })
-                  );
-                }}
-                className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-sky-300 font-bold cursor-pointer"
-              >
-                {CONDITIONS.map((c) => (
-                  <option key={c} value={c} className="bg-[#12151E]">
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+              {/* Elektron Trig Condition */}
+              <label className="flex items-center gap-1">
+                <span className="text-gray-400">COND:</span>
+                <select
+                  value={inspectedStepData.condition}
+                  onChange={(e) => {
+                    const cond = e.target.value as TrigCondition;
+                    onUpdateStepData(
+                      inspectedStepPos.trackIndex,
+                      inspectedStepPos.stepIndex,
+                      (prev) => ({ ...prev, condition: cond })
+                    );
+                  }}
+                  className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-sky-300 font-bold cursor-pointer"
+                >
+                  {CONDITIONS.map((c) => (
+                    <option key={c} value={c} className="bg-[#12151E]">
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : (
+            <span className="hidden xl:inline text-[9px] text-gray-400">
+              Tip: Drag rightward across steps or click 1 BEAT / 2 BEATS / 1 BAR to sustain notes without retriggering!
+            </span>
+          )}
         </div>
       )}
     </section>

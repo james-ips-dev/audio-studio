@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { RotaryKnob } from '../../../shared-ui/RotaryKnob';
-import { computeEuclideanSteps } from '../presets/factoryPatches';
+import {
+  AETHER_DRONE_PRESETS,
+  computeEuclideanSteps,
+} from '../presets/factoryPatches';
 import type { Aether8Telemetry } from '../audio/Aether8AudioEngine';
 import type {
   Aether8PatchV4,
@@ -17,6 +20,7 @@ export interface Row2DroneNoiseFilterProps {
   activeFromJack: { jackId: string; domain: SignalDomain } | null;
   onToggleClockExtMode: () => void;
   onSetChordVoicing: (voicing: ChordVoicingType) => void;
+  onSelectDronePreset?: (presetName: string) => void;
   onSetNoiseColor: (color: NoiseSpectrumColor) => void;
   onSetFilterMode: (mode: ZdfFilterMode) => void;
   onUpdateModuleParam: (moduleKey: string, paramKey: string, val: number) => void;
@@ -34,6 +38,7 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
   activeFromJack,
   onToggleClockExtMode,
   onSetChordVoicing,
+  onSelectDronePreset,
   onSetNoiseColor,
   onSetFilterMode,
   onUpdateModuleParam,
@@ -225,31 +230,70 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
       </div>
 
       {/* ====================================================================
-          04 // HARMONIC DRONE BANK (4-VCO Analog Swarm + Dual Subs)
+          04 // HARMONIC DRONE BANK (4-VCO Analog Swarm + Dual Subs + 20 Presets)
           ==================================================================== */}
       <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
-        <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
-          <span className="font-studio-mono text-[10px] font-bold text-sky-400">
-            04 // HARMONIC DRONE BANK
-          </span>
-          <div className="flex items-center gap-0.5 font-studio-mono text-[9px]">
-            {(['unison', 'fifth', 'min7', 'min9'] as ChordVoicingType[]).map(
-              (cv) => (
-                <button
-                  key={cv}
-                  type="button"
-                  onClick={() => onSetChordVoicing(cv)}
-                  className={`px-1.5 py-0.5 rounded uppercase cursor-pointer ${
-                    patch.chordType === cv
-                      ? 'bg-sky-400 text-black font-bold'
-                      : 'bg-white/5 text-gray-400'
-                  }`}
-                >
-                  {cv}
-                </button>
-              )
-            )}
+        <div className="flex flex-col gap-1 pb-1.5 border-b border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="font-studio-mono text-[10px] font-bold text-sky-400">
+              04 // HARMONIC DRONE BANK
+            </span>
+            <div className="flex items-center gap-0.5 font-studio-mono text-[9px]">
+              {(['unison', 'fifth', 'min7', 'min9'] as ChordVoicingType[]).map(
+                (cv) => (
+                  <button
+                    key={cv}
+                    type="button"
+                    onClick={() => onSetChordVoicing(cv)}
+                    className={`px-1.5 py-0.5 rounded uppercase cursor-pointer ${
+                      patch.chordType === cv
+                        ? 'bg-sky-400 text-black font-bold'
+                        : 'bg-white/5 text-gray-400'
+                    }`}
+                  >
+                    {cv}
+                  </button>
+                )
+              )}
+            </div>
           </div>
+          {onSelectDronePreset && (
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="font-studio-mono text-[9px] text-gray-400 uppercase shrink-0">
+                20 DRONE PRESETS:
+              </span>
+              <select
+                value={patch.dronePresetName ?? ''}
+                onChange={(e) => {
+                  if (e.target.value) onSelectDronePreset(e.target.value);
+                }}
+                className="flex-1 px-1.5 py-0.5 rounded bg-black/50 border border-sky-500/30 font-studio-mono text-[9px] text-sky-200 cursor-pointer"
+                title="20 Harmonic Drone Presets (10 Soft Silk + 10 Harsh)"
+              >
+                <option value="" disabled>
+                  Select Drone Preset (20)...
+                </option>
+                <optgroup label="☁️ 10 Soft Silk Drone Presets">
+                  {AETHER_DRONE_PRESETS.filter((p) => p.modeTag === 'soft').map(
+                    (p) => (
+                      <option key={p.name} value={p.name}>
+                        ☁️ {p.name}
+                      </option>
+                    )
+                  )}
+                </optgroup>
+                <optgroup label="⚡ 10 Harsh Drone Presets">
+                  {AETHER_DRONE_PRESETS.filter((p) => p.modeTag === 'harsh').map(
+                    (p) => (
+                      <option key={p.name} value={p.name}>
+                        ⚡ {p.name}
+                      </option>
+                    )
+                  )}
+                </optgroup>
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-1.5 place-items-center my-1.5">

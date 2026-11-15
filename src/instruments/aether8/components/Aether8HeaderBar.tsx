@@ -165,27 +165,79 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
         </button>
       </div>
 
-      {/* Center: 4 Factory Patches & Live Top-Bar Oscilloscope */}
-      <div className="hidden xl:flex items-center gap-1.5">
-        <div className="flex items-center bg-black/45 p-0.5 rounded-lg border border-white/10">
-          {AETHER8_FACTORY_PATCHES.map((fp) => {
-            const active = patch.name === fp.name;
-            return (
-              <button
-                key={fp.id}
-                type="button"
-                onClick={() => onLoadFactoryPatch(fp.id)}
-                title={fp.tagline}
-                className={`px-2 py-1 rounded font-studio-mono text-[10px] font-bold transition-all cursor-pointer ${
-                  active
-                    ? 'bg-sky-400 text-black shadow'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {fp.name}
-              </button>
-            );
-          })}
+      {/* Center: 20 Factory Sample Patches (10 Soft Silk + 10 Harsh) & Live Top-Bar Oscilloscope */}
+      <div className="hidden lg:flex items-center gap-1.5">
+        <div className="flex items-center bg-black/50 p-0.5 rounded-lg border border-white/10 gap-1">
+          <span className="font-studio-mono text-[9px] text-sky-400 uppercase px-1.5">
+            20 PATCHES:
+          </span>
+          <select
+            value={
+              AETHER8_FACTORY_PATCHES.find((fp) => fp.name === patch.name)
+                ?.id ?? ''
+            }
+            onChange={(e) => {
+              if (e.target.value) onLoadFactoryPatch(e.target.value);
+            }}
+            className="h-7 px-2 rounded bg-black/60 border border-sky-500/30 font-studio-mono text-[10px] font-bold text-sky-200 cursor-pointer"
+            title="Select from 20 Factory Sample Patches (10 Soft Silk + 10 Harsh)"
+          >
+            <option value="" disabled>
+              ★ {patch.name} (Custom)
+            </option>
+            <optgroup label="☁️ 10 SOFT SILK SAMPLE PATCHES">
+              {AETHER8_FACTORY_PATCHES.filter(
+                (fp) => fp.modeTag === 'soft'
+              ).map((fp, i) => (
+                <option key={fp.id} value={fp.id}>
+                  ☁️ {i + 1}. {fp.name} ({fp.patch.bpm} BPM)
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="⚡ 10 HARSH SAMPLE PATCHES">
+              {AETHER8_FACTORY_PATCHES.filter(
+                (fp) => fp.modeTag === 'harsh'
+              ).map((fp, i) => (
+                <option key={fp.id} value={fp.id}>
+                  ⚡ {i + 1}. {fp.name} ({fp.patch.bpm} BPM)
+                </option>
+              ))}
+            </optgroup>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              const curIdx = AETHER8_FACTORY_PATCHES.findIndex(
+                (fp) => fp.name === patch.name
+              );
+              const prevIdx =
+                curIdx <= 0
+                  ? AETHER8_FACTORY_PATCHES.length - 1
+                  : curIdx - 1;
+              onLoadFactoryPatch(AETHER8_FACTORY_PATCHES[prevIdx].id);
+            }}
+            title="Previous Factory Patch"
+            className="w-6 h-6 rounded bg-white/5 hover:bg-white/15 font-studio-mono text-[10px] text-gray-300 cursor-pointer"
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const curIdx = AETHER8_FACTORY_PATCHES.findIndex(
+                (fp) => fp.name === patch.name
+              );
+              const nextIdx =
+                curIdx < 0 || curIdx >= AETHER8_FACTORY_PATCHES.length - 1
+                  ? 0
+                  : curIdx + 1;
+              onLoadFactoryPatch(AETHER8_FACTORY_PATCHES[nextIdx].id);
+            }}
+            title="Next Factory Patch"
+            className="w-6 h-6 rounded bg-white/5 hover:bg-white/15 font-studio-mono text-[10px] text-gray-300 cursor-pointer"
+          >
+            ▶
+          </button>
         </div>
 
         <canvas
@@ -324,21 +376,70 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
                 />
               </div>
 
-              {/* Factory Patches Quick Load */}
-              <div className="grid grid-cols-2 gap-1">
-                {AETHER8_FACTORY_PATCHES.map((fp) => (
-                  <button
-                    key={fp.id}
-                    type="button"
-                    onClick={() => {
-                      onLoadFactoryPatch(fp.id);
-                      setVaultOpen(false);
-                    }}
-                    className="p-1.5 rounded bg-white/5 hover:bg-sky-500/20 border border-white/10 text-left font-studio-mono text-[10px] text-sky-200 cursor-pointer"
-                  >
-                    ★ {fp.name}
-                  </button>
-                ))}
+              {/* Factory Patches Quick Load (10 Soft Silk + 10 Harsh) */}
+              <div className="max-h-56 overflow-y-auto rounded bg-black/40 p-1.5 border border-white/10 space-y-2">
+                <div>
+                  <div className="text-[9px] font-studio-mono font-bold text-sky-300 uppercase mb-1">
+                    ☁️ 10 SOFT SILK SAMPLE PATCHES
+                  </div>
+                  <div className="grid grid-cols-1 gap-1">
+                    {AETHER8_FACTORY_PATCHES.filter(
+                      (fp) => fp.modeTag === 'soft'
+                    ).map((fp, i) => (
+                      <button
+                        key={fp.id}
+                        type="button"
+                        onClick={() => {
+                          onLoadFactoryPatch(fp.id);
+                          setVaultOpen(false);
+                        }}
+                        className={`p-1.5 rounded border text-left font-studio-mono text-[10px] cursor-pointer flex items-center justify-between ${
+                          patch.name === fp.name
+                            ? 'bg-sky-500/25 border-sky-400 text-white'
+                            : 'bg-white/5 hover:bg-sky-500/20 border-white/10 text-sky-200'
+                        }`}
+                      >
+                        <span className="truncate font-bold">
+                          ☁️ {i + 1}. {fp.name}
+                        </span>
+                        <span className="text-[9px] text-gray-400 ml-2 shrink-0">
+                          {fp.patch.bpm} BPM
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-1 border-t border-white/10">
+                  <div className="text-[9px] font-studio-mono font-bold text-amber-300 uppercase mb-1">
+                    ⚡ 10 HARSH SAMPLE PATCHES
+                  </div>
+                  <div className="grid grid-cols-1 gap-1">
+                    {AETHER8_FACTORY_PATCHES.filter(
+                      (fp) => fp.modeTag === 'harsh'
+                    ).map((fp, i) => (
+                      <button
+                        key={fp.id}
+                        type="button"
+                        onClick={() => {
+                          onLoadFactoryPatch(fp.id);
+                          setVaultOpen(false);
+                        }}
+                        className={`p-1.5 rounded border text-left font-studio-mono text-[10px] cursor-pointer flex items-center justify-between ${
+                          patch.name === fp.name
+                            ? 'bg-amber-500/25 border-amber-400 text-white'
+                            : 'bg-white/5 hover:bg-amber-500/20 border-white/10 text-amber-200'
+                        }`}
+                      >
+                        <span className="truncate font-bold">
+                          ⚡ {i + 1}. {fp.name}
+                        </span>
+                        <span className="text-[9px] text-gray-400 ml-2 shrink-0">
+                          {fp.patch.bpm} BPM
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* User Saved Patches */}
