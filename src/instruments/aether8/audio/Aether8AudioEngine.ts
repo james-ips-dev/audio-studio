@@ -583,7 +583,7 @@ export class Aether8AudioEngine {
     }
     if (this.masterGain) {
       this.masterGain.gain.setTargetAtTime(
-        this.isPlaying ? p.masterVol : 0.0001,
+        this.isPlaying ? p.masterVol : 0.0,
         now,
         0.03
       );

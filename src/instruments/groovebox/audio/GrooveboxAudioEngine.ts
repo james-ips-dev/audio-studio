@@ -580,7 +580,7 @@ export class GrooveboxAudioEngine {
     }
     if (this.masterGain) {
       this.masterGain.gain.setTargetAtTime(
-        p.globalFx.masterVolume,
+        this.isPlaying ? p.globalFx.masterVolume : 0.0,
         now,
         0.02
       );
@@ -599,6 +599,7 @@ export class GrooveboxAudioEngine {
     if (this.isPlaying) return;
 
     this.isPlaying = true;
+    this.syncMixerAndMasterGraph();
     this.currentGlobalStep = 0;
     this.loopCycleCount = 0;
     this.nextStepTime = ctx.currentTime + 0.03;
@@ -617,6 +618,7 @@ export class GrooveboxAudioEngine {
       this.schedulerTimer = null;
     }
     this.currentGlobalStep = 0;
+    this.syncMixerAndMasterGraph();
     this.notifyPlayhead(0, Array(8).fill(0));
   }
 

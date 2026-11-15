@@ -41,10 +41,14 @@ class AudioIsolationGuard {
 
     let audioCtx: AudioContext;
     try {
-      // Let browser negotiate native sample rate (e.g. 44.1kHz on Chromebooks, 48kHz on PCs/Macs)
-      // unless an explicit sampleRate option is requested.
+      // Use 'playback' latencyHint on mobile/Android/Chromebook to give a larger hardware audio buffer
+      // and prevent audio underrun static/clicks, while desktops keep 'interactive'
+      const isMobileOrCrOS =
+        typeof navigator !== 'undefined' &&
+        /Android|CrOS|Chromebook|tablet/i.test(navigator.userAgent);
+
       audioCtx = new AudioCtxConstructor({
-        latencyHint: 'interactive',
+        latencyHint: isMobileOrCrOS ? 'playback' : 'interactive',
         ...options,
       });
     } catch {
