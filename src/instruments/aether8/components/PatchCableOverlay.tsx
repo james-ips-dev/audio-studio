@@ -4,7 +4,11 @@ import type { PatchCable, SignalDomain } from '../types';
 export interface PatchCableOverlayProps {
   chassisRef: React.RefObject<HTMLDivElement | null>;
   cables: PatchCable[];
-  activeFromJack: { jackId: string; domain: SignalDomain } | null;
+  activeFromJack: {
+    jackId: string;
+    domain: SignalDomain;
+    originalSourceJackId?: string;
+  } | null;
   pointerPos: { x: number; y: number } | null;
 }
 
@@ -110,7 +114,9 @@ export const PatchCableOverlay: React.FC<PatchCableOverlayProps> = ({
       }
 
       if (activeFromJack && pointerPos) {
-        const p1 = getJackCenter(activeFromJack.jackId);
+        // In daisy-chain mode, start the visual dangling line from the endpoint jack being chained from
+        const visualFromId = activeFromJack.jackId;
+        const p1 = getJackCenter(visualFromId);
         const cRect = canvas.getBoundingClientRect();
         if (p1) {
           drawCatenaryCable(

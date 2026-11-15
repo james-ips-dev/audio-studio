@@ -5,7 +5,11 @@ import { PatchJackButton } from './PatchJackButton';
 
 export interface Row4BiosphereLabProps {
   patch: Aether8PatchV4;
-  activeFromJack: { jackId: string; domain: SignalDomain } | null;
+  activeFromJack: {
+    jackId: string;
+    domain: SignalDomain;
+    originalSourceJackId?: string;
+  } | null;
   onTriggerThunder: () => void;
   onApplyBioScene: (scene: 'calm-shore' | 'night-storm') => void;
   onUpdateModuleParam: (moduleKey: string, paramKey: string, val: number) => void;
@@ -15,6 +19,12 @@ export interface Row4BiosphereLabProps {
     domain: SignalDomain
   ) => void;
   onRemoveJackCables: (jackId: string) => void;
+  onRemoveSingleCable?: (cableId: string) => void;
+  onStartDaisyChain?: (
+    fromEndpointJackId: string,
+    originalSourceJackId: string,
+    domain: SignalDomain
+  ) => void;
 }
 
 export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
@@ -25,6 +35,8 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
   onUpdateModuleParam,
   onSelectJack,
   onRemoveJackCables,
+  onRemoveSingleCable,
+  onStartDaisyChain,
 }) => {
   const bio = patch.params.biosphere ?? {};
 
@@ -261,6 +273,8 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
             activeFromJack={activeFromJack}
             onSelectJack={onSelectJack}
             onRemoveJackCables={onRemoveJackCables}
+            onRemoveSingleCable={onRemoveSingleCable}
+            onStartDaisyChain={onStartDaisyChain}
           />
         ))}
       </div>

@@ -24,7 +24,11 @@ export interface Row1BeatAndSynthProps {
   patch: Aether8PatchV4;
   telemetry: Aether8Telemetry;
   visibleBar: number;
-  activeFromJack: { jackId: string; domain: SignalDomain } | null;
+  activeFromJack: {
+    jackId: string;
+    domain: SignalDomain;
+    originalSourceJackId?: string;
+  } | null;
   onSelectPatternBank: (bankId: PatternBankId) => void;
   onTogglePatternChain: () => void;
   onSetBarCount: (bars: 1 | 2 | 4) => void;
@@ -56,6 +60,12 @@ export interface Row1BeatAndSynthProps {
     domain: SignalDomain
   ) => void;
   onRemoveJackCables: (jackId: string) => void;
+  onRemoveSingleCable?: (cableId: string) => void;
+  onStartDaisyChain?: (
+    fromEndpointJackId: string,
+    originalSourceJackId: string,
+    domain: SignalDomain
+  ) => void;
 }
 
 const STUDIO_WAVES: AetherOscWave[] = [
@@ -96,6 +106,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
   onUpdateBeatVoice,
   onSelectJack,
   onRemoveJackCables,
+  onRemoveSingleCable,
+  onStartDaisyChain,
 }) => {
   const [selectedVoice, setSelectedVoice] = useState<BeatVoiceKey>('kick');
   const [synthSubTab, setSynthSubTab] = useState<
@@ -636,6 +648,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
                 activeFromJack={activeFromJack}
                 onSelectJack={onSelectJack}
                 onRemoveJackCables={onRemoveJackCables}
+                onRemoveSingleCable={onRemoveSingleCable}
+                onStartDaisyChain={onStartDaisyChain}
               />
             ))}
             <PatchJackButton
@@ -647,6 +661,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
             <PatchJackButton
               jackId="xox:barTrig"
@@ -657,6 +673,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-1">
@@ -671,6 +689,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
                 activeFromJack={activeFromJack}
                 onSelectJack={onSelectJack}
                 onRemoveJackCables={onRemoveJackCables}
+                onRemoveSingleCable={onRemoveSingleCable}
+                onStartDaisyChain={onStartDaisyChain}
               />
             ))}
           </div>
@@ -1359,6 +1379,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
                 activeFromJack={activeFromJack}
                 onSelectJack={onSelectJack}
                 onRemoveJackCables={onRemoveJackCables}
+                onRemoveSingleCable={onRemoveSingleCable}
+                onStartDaisyChain={onStartDaisyChain}
               />
             ))}
             <PatchJackButton
@@ -1370,6 +1392,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
             <PatchJackButton
               jackId="beats:filtCv"
@@ -1380,6 +1404,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           </div>
 
@@ -1395,6 +1421,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
                 activeFromJack={activeFromJack}
                 onSelectJack={onSelectJack}
                 onRemoveJackCables={onRemoveJackCables}
+                onRemoveSingleCable={onRemoveSingleCable}
+                onStartDaisyChain={onStartDaisyChain}
               />
             ))}
             <PatchJackButton
@@ -1406,6 +1434,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
             <PatchJackButton
               jackId="beats:envOut"
@@ -1416,6 +1446,8 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           </div>
         </div>

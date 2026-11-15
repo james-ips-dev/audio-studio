@@ -17,7 +17,11 @@ import { PatchJackButton } from './PatchJackButton';
 export interface Row2DroneNoiseFilterProps {
   patch: Aether8PatchV4;
   telemetry: Aether8Telemetry;
-  activeFromJack: { jackId: string; domain: SignalDomain } | null;
+  activeFromJack: {
+    jackId: string;
+    domain: SignalDomain;
+    originalSourceJackId?: string;
+  } | null;
   onToggleClockExtMode: () => void;
   onSetChordVoicing: (voicing: ChordVoicingType) => void;
   onSelectDronePreset?: (presetName: string) => void;
@@ -30,6 +34,12 @@ export interface Row2DroneNoiseFilterProps {
     domain: SignalDomain
   ) => void;
   onRemoveJackCables: (jackId: string) => void;
+  onRemoveSingleCable?: (cableId: string) => void;
+  onStartDaisyChain?: (
+    fromEndpointJackId: string,
+    originalSourceJackId: string,
+    domain: SignalDomain
+  ) => void;
 }
 
 export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
@@ -44,6 +54,8 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
   onUpdateModuleParam,
   onSelectJack,
   onRemoveJackCables,
+  onRemoveSingleCable,
+  onStartDaisyChain,
 }) => {
   const euclidCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -224,6 +236,8 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -389,6 +403,8 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -514,6 +530,8 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -641,6 +659,8 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>

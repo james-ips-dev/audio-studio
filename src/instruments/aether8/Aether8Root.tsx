@@ -100,6 +100,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
   const [activeFromJack, setActiveFromJack] = useState<{
     jackId: string;
     domain: SignalDomain;
+    originalSourceJackId?: string;
   } | null>(null);
   const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(
     null
@@ -229,7 +230,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
 
       // Clicking an INPUT jack while holding an active OUTPUT jack creates a cable
       if (direction === 'in' && activeFromJack) {
-        const fromId = activeFromJack.jackId;
+        // If this is a daisy-chain from an endpoint, wire from the original source so DSP receives it seamlessly
+        const fromId = activeFromJack.originalSourceJackId ?? activeFromJack.jackId;
         const cableType = activeFromJack.domain;
         setPatch((prev) => {
           const exists = prev.cables.some(
@@ -255,10 +257,32 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
     [activeFromJack]
   );
 
+  const handleStartDaisyChain = useCallback(
+    (
+      fromEndpointJackId: string,
+      originalSourceJackId: string,
+      domain: SignalDomain
+    ) => {
+      setActiveFromJack({
+        jackId: fromEndpointJackId,
+        originalSourceJackId,
+        domain,
+      });
+    },
+    []
+  );
+
   const handleRemoveJackCables = useCallback((jackId: string) => {
     setPatch((prev) => ({
       ...prev,
       cables: prev.cables.filter((c) => c.from !== jackId && c.to !== jackId),
+    }));
+  }, []);
+
+  const handleRemoveSingleCable = useCallback((cableId: string) => {
+    setPatch((prev) => ({
+      ...prev,
+      cables: prev.cables.filter((c) => c.id !== cableId),
     }));
   }, []);
 
@@ -418,12 +442,25 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
       {activeFromJack && (
         <div className="bg-amber-500/15 border-b border-amber-400/40 px-4 py-1 flex items-center justify-between font-studio-mono text-[10px] text-amber-300 shrink-0">
           <span>
-            🔌 PATCHING ACTIVE FROM{' '}
-            <strong className="text-white">{activeFromJack.jackId}</strong> (
-            {activeFromJack.domain.toUpperCase()}) — Click any highlighted{' '}
-            <strong className="text-amber-200">IN</strong> jack to connect, or
-            press <kbd className="px-1 py-0.5 bg-black/50 rounded">ESC</kbd> to
-            cancel.
+            {activeFromJack.originalSourceJackId ? (
+              <>
+                🔗 <strong>DAISY CHAINING</strong> from endpoint{' '}
+                <strong className="text-white">{activeFromJack.jackId}</strong>{' '}
+                (forwarding source signal from{' '}
+                <strong className="text-amber-200">{activeFromJack.originalSourceJackId}</strong>) — Click any{' '}
+                <strong className="text-amber-200">IN</strong> jack to bridge, or press{' '}
+                <kbd className="px-1 py-0.5 bg-black/50 rounded">ESC</kbd> to cancel.
+              </>
+            ) : (
+              <>
+                🔌 PATCHING ACTIVE FROM{' '}
+                <strong className="text-white">{activeFromJack.jackId}</strong> (
+                {activeFromJack.domain.toUpperCase()}) — Click any highlighted{' '}
+                <strong className="text-amber-200">IN</strong> jack to connect, or
+                press <kbd className="px-1 py-0.5 bg-black/50 rounded">ESC</kbd> to
+                cancel.
+              </>
+            )}
           </span>
           <button
             type="button"
@@ -639,6 +676,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
             }
             onSelectJack={handleSelectJack}
             onRemoveJackCables={handleRemoveJackCables}
+            onRemoveSingleCable={handleRemoveSingleCable}
+            onStartDaisyChain={handleStartDaisyChain}
           />
 
           {/* ROW 2: 03 // MASTER CLOCK, 04 // DRONE SWARM, 05 // NOISE LAB, 06 // ZDF LADDER FILTER */}
@@ -687,6 +726,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
             onUpdateModuleParam={handleUpdateModuleParam}
             onSelectJack={handleSelectJack}
             onRemoveJackCables={handleRemoveJackCables}
+            onRemoveSingleCable={handleRemoveSingleCable}
+            onStartDaisyChain={handleStartDaisyChain}
           />
 
           {/* ROW 3: 07 // VACTROL PULSE, 08 // MODULATION, 09 // LO-FI FX, 10 // DUB DELAY, 11 // MASTER MIXER */}
@@ -700,6 +741,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
             onUpdateModuleParam={handleUpdateModuleParam}
             onSelectJack={handleSelectJack}
             onRemoveJackCables={handleRemoveJackCables}
+            onRemoveSingleCable={handleRemoveSingleCable}
+            onStartDaisyChain={handleStartDaisyChain}
           />
 
           {/* ROW 4: 12 // 5-ENGINE BIOSPHERE & WEATHER SYNTHESIS LAB */}
@@ -763,6 +806,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
             onUpdateModuleParam={handleUpdateModuleParam}
             onSelectJack={handleSelectJack}
             onRemoveJackCables={handleRemoveJackCables}
+            onRemoveSingleCable={handleRemoveSingleCable}
+            onStartDaisyChain={handleStartDaisyChain}
           />
         </div>
       </div>

@@ -7,7 +7,11 @@ import { PatchJackButton } from './PatchJackButton';
 export interface Row3PulseModFxMixerProps {
   patch: Aether8PatchV4;
   telemetry: Aether8Telemetry;
-  activeFromJack: { jackId: string; domain: SignalDomain } | null;
+  activeFromJack: {
+    jackId: string;
+    domain: SignalDomain;
+    originalSourceJackId?: string;
+  } | null;
   onPingVactrol: () => void;
   onUpdateModuleParam: (moduleKey: string, paramKey: string, val: number) => void;
   onSelectJack: (
@@ -16,6 +20,12 @@ export interface Row3PulseModFxMixerProps {
     domain: SignalDomain
   ) => void;
   onRemoveJackCables: (jackId: string) => void;
+  onRemoveSingleCable?: (cableId: string) => void;
+  onStartDaisyChain?: (
+    fromEndpointJackId: string,
+    originalSourceJackId: string,
+    domain: SignalDomain
+  ) => void;
 }
 
 export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
@@ -26,6 +36,8 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
   onUpdateModuleParam,
   onSelectJack,
   onRemoveJackCables,
+  onRemoveSingleCable,
+  onStartDaisyChain,
 }) => {
   const pulsePrm = patch.params.pulse ?? {};
   const modPrm = patch.params.mod ?? {};
@@ -144,6 +156,8 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -243,6 +257,8 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -354,6 +370,8 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -464,6 +482,8 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
@@ -574,6 +594,8 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
               activeFromJack={activeFromJack}
               onSelectJack={onSelectJack}
               onRemoveJackCables={onRemoveJackCables}
+              onRemoveSingleCable={onRemoveSingleCable}
+              onStartDaisyChain={onStartDaisyChain}
             />
           ))}
         </div>
