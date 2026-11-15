@@ -1,0 +1,237 @@
+# STUDIO_SUITE_ARCHITECTURE.md
+## Exhaustive Multi-Instrument Host Shell & Strict-Isolation Architecture Specification (Antigravity 2 Implementation Guide)
+
+---
+
+## 1. Executive Summary & Core Philosophy
+
+This specification defines the **Web Audio Studio Suite Host Shell**—a lightweight, extensible multi-instrument web application launcher designed to host completely independent, standalone browser-based synthesizers, grooveboxes, and soundscape workstations under a single unified entry point.
+
+### 1.1 The "Hard Product Isolation" Mandate
+From a user, audio-engine, state-management, and persistence perspective, **each registered instrument MUST operate as a 100% independent product**.
+- **Zero Audio Crossover:** Instruments NEVER share an `AudioContext`, master bus, clock scheduler, FX chain, or audio routing graph. Only **one** instrument may hold an active, running `AudioContext` and scheduler loop at any given moment.
+- **Zero State & Storage Leakage:** Instruments NEVER share global Redux/Zustand/React state, `localStorage` keys, or `IndexedDB` object stores. Presets, patterns, BPMs, internal sub-modes, and recordings saved in Instrument A must never appear in, overwrite, or affect Instrument B.
+- **Zero Cross-Imports:** Code inside `/src/instruments/<instrument-id>/` MUST NEVER import files from another `/src/instruments/<other-id>/` directory. All instruments communicate exclusively with the Host Shell via a strict **Instrument Plugin Lifecycle Contract**.
+- **Preservation of Internal Instrument Sub-Modes:** Each registered instrument owns its entire internal viewport (`calc(100vh - 36px)`) and retains all of its own internal sub-modes, view toggles, and drawers without interference from the outer Host Shell. Specifically, **Product 1 (`groovebox`) MUST preserve its own internal `PLAY` and `STUDIO` mode switcher** inside `GrooveboxRoot.tsx`, switching views seamlessly without tearing down its own `AudioContext` or interrupting live playback.
+- **Plugin Extensibility:** Adding a 3rd, 4th, or $N\text{th}$ instrument in the future (e.g., an FM synthesizer, granular sample mangler, or polyphonic ambient pad workstation) must require **only** creating a new self-contained folder under `/src/instruments/` and adding a single entry to the central `INSTRUMENT_REGISTRY`.
+
+---
+
+## 2. Recommended Tech Stack & Toolchain Alignment
+
+- **Framework:** Vite + React 18+ (TypeScript `.tsx` / `.ts` strongly recommended for enforcing the Instrument Lifecycle Contract).
+- **Styling:** Tailwind CSS with scoped CSS custom properties or per-instrument root wrapper classes so dark-mode palettes, custom scrollbars, and rotary knob styles do not collide across instruments.
+- **Audio Engine:** Native Web Audio API (`AudioContext` at `48000 Hz`), `AudioWorklet` / `ScriptProcessorNode` (for `.wav` stereo capture), and `requestAnimationFrame` visualizers scoped strictly to each instrument's active lifecycle.
+- **Persistence:** Native `IndexedDB` wrapped in a namespaced storage helper (`suite_<instrumentId>_db`) + JSON file import/export.
+
+---
+
+## 3. Canonical Directory Structure
+
+Antigravity 2 MUST scaffold and enforce the following exact folder hierarchy:
+
+```text
+/studio-suite
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+└── src/
+    ├── main.tsx                        # Entry point mounting StudioShell
+    ├── App.tsx                         # Top-level StudioShell (36px Outer Switcher + Active Viewport)
+    ├── index.css                       # Minimal reset + Host Shell utility styles ONLY
+    │
+    ├── core/                           # Host Shell infrastructure (NO audio synthesis logic here)
+    │   ├── types.ts                    # Strict TypeScript contracts (InstrumentManifest, LifecycleHooks)
+    │   ├── registry.ts                 # Single source of truth registering all available instruments
+    │   ├── storageFactory.ts           # Namespaced IndexedDB & JSON export/import factory
+    │   └── audioGuard.ts               # Enforces single-active-AudioContext teardown on switch
+    │
+    ├── shared-ui/                      # OPTIONAL stateless UI primitives (zero audio/state coupling)
+    │   ├── RotaryKnob.tsx              # Pure visual/pointer rotary dial component
+    │   ├── WavExporter.ts              # Stateless Float32Array -> 16-bit PCM WAV Blob encoder
+    │   └── ConfirmModal.tsx            # Generic confirmation dialog
+    │
+    └── instruments/                    # Strictly isolated product directories
+        ├── groovebox/                  # PRODUCT 1: Groovebox Workstation (Retains PLAY & STUDIO modes)
+        │   ├── index.ts                # Exports GrooveboxDefinition (id, name, component, cleanup)
+        │   ├── GrooveboxRoot.tsx       # Root React component + internal PLAY / STUDIO mode switcher
+        │   ├── audio/                  # Isolated Groovebox Web Audio engine & clock
+        │   ├── components/
+        │   │   ├── PlayModeView.tsx    # Live performance pads, macro FX, pattern launch, mute/solo
+        │   │   └── StudioModeView.tsx  # Deep step sequencer, synth engine params, mixer & arrangement
+        │   ├── presets/                # Factory groovebox patterns & kits
+        │   └── groovebox.css           # Scoped styles (.inst-groovebox ...)
+        │
+        └── aether8/                    # PRODUCT 2: AETHER-8 Modular Dub-Drone Workstation (v4 Spec)
+            ├── index.ts                # Exports Aether8Definition (id, name, component, cleanup)
+            ├── Aether8Root.tsx         # Root React component & scoped theme wrapper
+            ├── audio/                  # Isolated AETHER-8 12-module DSP graph, X0X clock & FX racks
+            ├── components/             # 12 Eurorack modules, Canvas patch cables, Output Mixer drawer
+            ├── presets/                # Factory patches (COPPICE DUB, SUBTERRANEAN, TAPE DECAY, SILK RAIN)
+            └── aether8.css             # Scoped styles (.inst-aether8 ...)
+```
+
+---
+
+## 4. Two-Tier Navigation Hierarchy (Outer Launcher vs. Inner Instrument Modes)
+
+Antigravity 2 must maintain a strict separation between **outer product switching** and **inner instrument sub-modes**:
+
+| Layer | Component | Purpose | Audio Engine Behavior on Switch |
+| :--- | :--- | :--- | :--- |
+| **Tier 1 (Outer)** | `App.tsx` (`36px` top bar) | Switches between standalone products: **`GROOVEBOX`** $\leftrightarrow$ **`AETHER-8`** (and future instruments). | **Hard Teardown:** Stops clocks, closes outgoing `AudioContext`, unmounts outgoing DOM tree. |
+| **Tier 2 (Inner — Groovebox)** | `GrooveboxRoot.tsx` header | Switches Groovebox's internal workflow between **`PLAY` Mode** (live performance) and **`STUDIO` Mode** (deep sound design & sequencing). | **Zero Interruption:** Keeps Groovebox's `AudioContext`, active sequence, and audio playback running seamlessly while swapping views. |
+| **Tier 2 (Inner — AETHER-8)** | `Aether8Root.tsx` header | Toggles AETHER-8's internal drawers and global modes (`HARSH / SOFT SILK`, `OUTPUT MIXER` drawer, `MOD MATRIX` drawer). | **Zero Interruption:** Keeps AETHER-8's `AudioContext`, X0X beat clock, and patch cables running seamlessly. |
+
+---
+
+## 5. The Instrument Plugin Lifecycle Contract (`src/core/types.ts`)
+
+Every instrument integrated into the suite MUST implement the `InstrumentDefinition` interface. This guarantees that the Host Shell can mount, unmount, suspend, and switch between any number of instruments cleanly without memory leaks, zombie timers, or hanging audio nodes.
+
+```typescript
+import React from 'react';
+
+export interface InstrumentThemeBadge {
+  accentHex: string;       // e.g., '#F43F5E' for Groovebox, '#38BDF8' for AETHER-8
+  tagline: string;         // Short subtitle shown on switcher tooltip/card
+}
+
+export interface InstrumentHandle {
+  /**
+   * Immediately halts all transport clocks, setInterval/setTimeout schedulers,
+   * requestAnimationFrame loops, and suspends or closes the instrument's AudioContext.
+   * Called automatically by StudioShell BEFORE switching to another instrument.
+   */
+  suspendAndCleanup: () => Promise<void> | void;
+
+  /**
+   * Returns true if the instrument's AudioContext is currently powered on and running.
+   */
+  isAudioActive: () => boolean;
+}
+
+export interface InstrumentComponentProps {
+  /**
+   * Callback ref registered by the instrument so the Host Shell can deterministically
+   * trigger teardown/cleanup when switching instruments or closing the tab.
+   */
+  registerHandle: (handle: InstrumentHandle) => void;
+
+  /**
+   * Pre-configured, strictly isolated IndexedDB storage namespace scoped to `manifest.id`.
+   */
+  storageNamespace: string;
+}
+
+export interface InstrumentDefinition {
+  id: string;              // Unique URL-safe slug (e.g., 'groovebox', 'aether8')
+  name: string;            // Display name in top switcher bar (e.g., 'GROOVEBOX', 'AETHER-8')
+  version: string;         // Semantic version string (e.g., 'v1.0', 'v4.0')
+  badge: InstrumentThemeBadge;
+  component: React.ComponentType<InstrumentComponentProps>;
+}
+```
+
+---
+
+## 6. Central Instrument Registry (`src/core/registry.ts`)
+
+To add a new instrument in the future, a developer or AI agent creates its folder under `src/instruments/<new-id>/` and appends it to `INSTRUMENT_REGISTRY`. The Host Shell UI dynamically generates navigation tabs from this array.
+
+```typescript
+import { InstrumentDefinition } from './types';
+import { GrooveboxDefinition } from '../instruments/groovebox';
+import { Aether8Definition } from '../instruments/aether8';
+
+export const INSTRUMENT_REGISTRY: InstrumentDefinition[] = [
+  GrooveboxDefinition,
+  Aether8Definition,
+  // Future instruments plug in here with zero changes to existing instruments:
+  // KineticFmDefinition,
+  // GranularManglerDefinition,
+];
+
+export const DEFAULT_INSTRUMENT_ID = 'groovebox';
+```
+
+---
+
+## 7. Deterministic Outer Mode Switching & Audio Teardown Protocol
+
+When a user clicks an instrument tab in the top `36px` Host Shell bar (`GROOVEBOX` $\leftrightarrow$ `AETHER-8`), the Host Shell MUST execute the following 5-step atomic transition sequence to prevent audio pops, orphaned `AudioContext` instances, or browser hardware-audio limits:
+
+1. **Intercept Switch Request:** User clicks target instrument tab (`targetId`). If `targetId === activeInstrumentId`, do nothing.
+2. **Lock Switcher UI (`isSwitching = true`):** Temporarily disable switcher buttons (`150ms` debounce) to prevent rapid double-click race conditions during `AudioContext.close()`.
+3. **Execute Outgoing Teardown (`currentHandle.suspendAndCleanup()`):**
+   - Ramp outgoing `masterGain.gain` exponentially to `0.0001` over `20ms` to eliminate speaker clicks/pops.
+   - `clearInterval` / `clearTimeout` all lookahead clock schedulers (`schedulerTick`).
+   - `cancelAnimationFrame` all canvas renderers (cable physics canvas, Euclidean ring, LFO scope, step visualizers).
+   - Remove global `window` event listeners (`pointermove`, `pointerup`, `keydown`) attached by the outgoing instrument.
+   - Call `await audioCtx.close()` (and null out the reference) so browser DSP threads and memory buffers are 100% freed.
+4. **Unmount Outgoing React Tree & Mount Incoming Tree:**
+   - Update `activeInstrumentId = targetId` and persist only the active tab ID in `localStorage.setItem('studio_suite_last_active_tab', targetId)`.
+   - Mount `<TargetInstrument.component registerHandle={...} storageNamespace={`suite_${targetId}`} />`.
+5. **Unlock Switcher UI (`isSwitching = false`):** The incoming instrument renders in its clean, ready state (with Groovebox defaulting to its own internal `PLAY` or `STUDIO` sub-mode state without interference).
+
+---
+
+## 8. Host Shell UI Specification (`src/App.tsx`)
+
+The Host Shell must stay visually minimal so it never steals screen real estate from dense workspaces like **Groovebox's Play/Studio views** or **AETHER-8's 12-module Eurorack chassis**:
+
+- **Top Launcher Bar Height:** Compact `36px` (`h-9`) fixed header bar at the very top of the viewport (`z-50`, `#07080B` background, `1px solid rgba(255,255,255,0.08)` bottom border).
+- **Left Branding:** Subtle studio badge (`STUDIO SUITE // WORKSTATION`) in `10px` monospace uppercase.
+- **Center Instrument Switcher Tabs:**
+  - Segmented pill switcher rendering every item in `INSTRUMENT_REGISTRY`.
+  - Each tab displays: Status dot (colored with `badge.accentHex` when active), Instrument `name`, and subtle `version` pill.
+  - Active tab has high-contrast surface (`#161A24`), crisp `1px` border, and glowing accent indicator.
+  - Inactive tabs have muted gray text (`#9CA3AF`) with hover highlight.
+- **Right Utility Slot:** Full-screen toggle (`⛶`) and audio-engine isolation status indicator (`AUDIO ISOLATED • READY`).
+- **Workspace Viewport (`calc(100vh - 36px)`):** Full-bleed container hosting the currently mounted instrument root.
+
+---
+
+## 9. Namespaced Persistence & Patch Isolation (`src/core/storageFactory.ts`)
+
+Each instrument receives its own isolated `IndexedDB` database instance created via `createInstrumentStorage(storageNamespace)`:
+
+- **Database Name:** `${storageNamespace}_db` (e.g., `suite_groovebox_db` vs. `suite_aether8_db`).
+- **Object Stores per DB:**
+  - `patches`: Stores user-saved patches/projects (`{ id, name, updatedAt, payload }`).
+  - `autosave`: Stores single key `'last_session'` so if the user refreshes the browser, each instrument independently restores its own last working state (including Groovebox's active `PLAY` or `STUDIO` mode).
+- **JSON Export/Import Tagging:** Every exported `.json` patch file MUST include a top-level header `{ "instrumentId": "<id>", "schemaVersion": "<version>", "data": { ... } }`. If a user accidentally tries to import a Groovebox `.json` file into AETHER-8 (or vice versa), the importer rejects it cleanly with a clear toast message: `"Incompatible file: This patch belongs to GROOVEBOX, not AETHER-8."`
+
+---
+
+## 10. CSS & DOM Event Scoping Rules (Preventing Collisions)
+
+1. **Root Class Scoping:**
+   - Wrap the entire Groovebox UI in `<div className="inst-groovebox h-full w-full overflow-hidden">`.
+   - Wrap the entire AETHER-8 UI in `<div className="inst-aether8 h-full w-full overflow-hidden">`.
+   - Prefix any custom CSS rules (knob styles, custom scrollbars, animations, grid classes) with `.inst-groovebox` or `.inst-aether8`.
+2. **No Hardcoded Global Element ID Collisions:**
+   - Replace `document.getElementById(...)` calls inside individual instruments with React `useRef` hooks (or scope queries to the instrument's root container ref `rootRef.current.querySelector(...)`).
+3. **Scoped Keyboard Shortcuts:**
+   - Any `keydown` listener (such as `Spacebar` for Play/Stop, internal `PLAY`/`STUDIO` shortcuts in Groovebox, or `Escape` to cancel a dangling patch cable in AETHER-8) MUST be attached inside a `useEffect` hook in that instrument's root component and cleanly removed in the `useEffect` cleanup function on unmount.
+
+---
+
+## 11. Step-by-Step Execution Checklist for Antigravity 2
+
+When provided with this specification (`STUDIO_SUITE_ARCHITECTURE.md`), the **Groovebox** source/spec, and the **AETHER-8 v4** source/spec (`drone_modular_v4.md` / `drone_modular.html`), Antigravity 2 must execute in this exact order:
+
+1. **Scaffold Host Shell:** Initialize Vite + React + TypeScript + Tailwind CSS project with the exact folder tree in Section 3.
+2. **Implement Core Contracts & Storage:** Build `src/core/types.ts`, `src/core/registry.ts`, `src/core/storageFactory.ts`, and `src/App.tsx` (the `36px` top launcher switcher with deterministic teardown).
+3. **Integrate Product 1 (`src/instruments/groovebox/`):**
+   - Encapsulate the Groovebox audio engine into a self-contained class with a `dispose()` method that closes its `AudioContext` and clears all timers.
+   - Preserve Groovebox's internal **`PLAY` and `STUDIO` mode switcher** inside `GrooveboxRoot.tsx`, ensuring switching between `PLAY` and `STUDIO` keeps the audio engine running smoothly without interruption.
+   - Wrap UI in `.inst-groovebox`, bind `registerHandle`, and connect to `suite_groovebox_db`.
+4. **Integrate Product 2 (`src/instruments/aether8/`):**
+   - Encapsulate the complete **AETHER-8 v4** 12-module engine (`drone_modular_v4.md` / `drone_modular.html`—including the 4-Pattern/Multi-Bar X0X Sequencer, Beat-Triggered Time Generators, Full Per-Voice Beat Synthesizers, `HARSH / SOFT SILK` toggle, Biosphere & Weather Lab, 10-Channel Output Console + Per-Output Granular FX Racks, Stackable Patch Cables, and `.wav` Recorder) into `src/instruments/aether8/`.
+   - Encapsulate all `AudioContext`, `setInterval`, `requestAnimationFrame`, and `window` pointer listeners inside `Aether8Root.tsx` / `Aether8Engine.ts` with deterministic cleanup on `suspendAndCleanup()`.
+   - Connect patch save/load to `suite_aether8_db` with strict `instrumentId: 'aether8'` JSON validation.
+5. **Verification & Regression Gate:**
+   - Verify toggling Groovebox's internal `PLAY` $\leftrightarrow$ `STUDIO` modes works smoothly during live playback without audio glitches.
+   - Verify switching outer tabs `GROOVEBOX` $\rightarrow$ `AETHER-8` $\rightarrow$ `GROOVEBOX` 10 times consecutively produces zero console errors, zero orphaned audio threads, zero lingering sound bleed, and preserves each instrument's independent state and saved patches.

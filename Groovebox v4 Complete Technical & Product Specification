@@ -1,0 +1,460 @@
+# Groovebox v4 — Exhaustive Product, Performance, Musicality & Technical Specification (`groovebox4.md`)
+
+## 1. Product Vision, Dual-Persona Modes & Target Hardware
+* **Product Concept:** A self-contained, 100% browser-based, all-synth 8-track groovebox, extendable-note step sequencer, live clip-launching performance workstation, expressive pad controller, modular-style synthesizer, internal resampler, and song arranger engineered for both touchscreen tablets and desktop workstations.
+* **Dual-Mode Architecture (`BEGINNER / PLAY` vs. `PRO / STUDIO`):**
+  * **Seamless Mode Toggle in Top Transport Bar:** Flips the UI and DSP depth instantaneously without reloading or breaking compatibility.
+  * **Shared Underlying Audio Engine:** Both modes run on the exact same pure TypeScript Web Audio synthesis engine. Patches and songs created in **Pro (`STUDIO`) Mode** can be opened and played in **Beginner (`PLAY`) Mode** (where the 6 beginner macro sliders map to weighted combinations of the Pro synth parameters), and vice versa.
+  * **Persona 1 — `BEGINNER (PLAY)` Mode (7-Year-Old Ergonomics):** Tactile Teenage Engineering / Ableton Note / Nintendo Labo aesthetic; bold per-track color coding, 6 large visual-level macro faders per track with dual-layer friendly labels + micro-icons, reactive oscilloscope, draggable ADSR mountain, functional note color-coding, simplified 1-bar quantized live remix pads, one-tap musical co-play tools (`ANSWER ME`, `MAGIC CHORD`), and parent-protected `SAFE LOCK` mode.
+  * **Persona 2 — `PRO (STUDIO)` Mode (Adult Producer / High-Spec Tablet or PC):** Unlocks full multi-oscillator analog/hybrid synthesis (**2 Primary Oscillators + 2 Sub-Oscillators + Noise**), Voice Modes (`Mono / Legato / Poly / Unison`), Portamento/Glide, Oscillator Key-Sync, 3 independent envelopes, dual LFOs, drag-and-drop **8-Slot Modulation Matrix**, **16-Step Modulation Sequencer**, **Per-Channel Insert FX Chains (with Sidechain & Transient Shaper)**, **Per-Track Stereo Width & Sub Mono-Maker**, **Master Bus Mastering Chain**, **Per-Note Visual Velocity & Micro-Timing Lanes**, **Euclidean Rhythms & Conditional Trigs**, **`PERFORMANCE` Live Clip Launch Matrix & Dual-Deck `A/B` Pattern Crossfader**, **Scene Crossfader**, **Internal Resampling**, **Web MIDI I/O + `.mid` Export**, and **8-Track `.wav` Stem Export**.
+* **Target Hardware Tiers:**
+  * **Tier 1 (Beginner / Portable Tablet):** **Lenovo Tab 6** ($1920 \times 1200$ 10.3" landscape IPS, Qualcomm Snapdragon 690, 4GB RAM, native $48000\text{ Hz}$ audio output via 3.5mm wired headphone jack). Includes an **`ECO` Performance Toggle** (30fps canvas throttling, shared algorithmic comb-filter reverb, $160\text{ ms}$ lookahead buffer, strict one-shot node garbage collection) so mid-range mobile CPUs never stutter.
+  * **Tier 2 (Pro / Studio Workstation):** **Windows/macOS PC or High-Spec Tablet** (e.g., Galaxy Tab S9/S10, iPad Pro). Runs at 60fps with full polyphony/unison, active per-channel insert FX chains, audio-rate modulation, QWERTY keyboard shortcuts, and Web MIDI hardware integration.
+* **Distribution & Packaging:** Client-side **Progressive Web App (PWA)** (`manifest.json` + Service Worker for 100% offline use) and Android **Trusted Web Activity (TWA)** locked to landscape (`100vw` by `100dvh`, zero page scrolling).
+
+---
+
+## 2. Technology Stack & Core Audio Engineering Mandates
+* **Core Language:** **TypeScript** (strict mode) for all state, DSP voice graphs, lookahead scheduling, per-track clip routing, parameter addressing, and UI components.
+* **UI & Visualizers:** **React 18+** + **Vite** + **Tailwind CSS**, paired with high-DPI **HTML5 `<canvas>`** (`requestAnimationFrame`) for the zero-crossing oscilloscope, FFT spectrum, ADSR/filter curves, Kaoss X/Y trails, velocity/micro-timing lanes, and LED VU meters.
+* **Audio Engine:** Native **Web Audio API** (`AudioContext`, `OscillatorNode`, `BiquadFilterNode`, `GainNode`, `WaveShaperNode`, `DelayNode`, `DynamicsCompressorNode`, `StereoPannerNode`, `AnalyserNode`, `OfflineAudioContext`), plus **`AudioWorklet`** processors for custom bitcrushing, sample-rate reduction, tape wow/flutter, and analog wavefolding.
+* **Hardware Integration & Persistence:** **Web MIDI API** (`navigator.requestMIDIAccess`), **`IndexedDB`** (`idb` + `navigator.storage.persist()`), `.json` project I/O, `.mid` Standard MIDI File export, and `.wav` stereo/stem/resampled audio export.
+
+### Critical Real-Time Performance Rules
+1. **Strictly Decouple Audio & Scheduler from React State:**
+   * **NEVER** trigger React `useState` updates on step ticks, 60fps VU meter reads, or continuous fader drags.
+   * Keep the audio graph, lookahead scheduler, active clip routing pointers, and active parameter values in pure TypeScript modules outside React. Update playhead highlights and clip launch status indicators via direct DOM class toggling and `<canvas>` loops, syncing to React only on pointer release or structural edits.
+2. **Sample-Accurate Lookahead Scheduler with Extendable Gate & Per-Track Clip Routing:**
+   * A timer ($25\text{ ms}$ to $40\text{ ms}$ interval) inspects `audioContext.currentTime` and schedules note triggers, gate-off releases, and parameter ramps **$100\text{ ms}$ to $160\text{ ms}$ ahead** using exact Web Audio timestamps (`osc.start(tStart)` and `gateOff(tEnd)`), with catch-up protection against main-thread stalls.
+   * **Zero-Overhead Per-Track Clip Pointer Routing:** Because all patterns (`A1–D4`) reside in memory as lightweight JSON step arrays, routing Track 1 to read from Pattern `B2` while Track 5 reads from Pattern `A1` requires **zero extra DSP voices or RAM**—the scheduler simply resolves `activePatternForTrack[trackIndex]` on each step boundary.
+   * **Multi-Step Gate Lifecycle:** For notes with `durationSteps > 1`, `Gate On` triggers Attack $\rightarrow$ Decay $\rightarrow$ Sustain at `tStart`, holds the Sustain level across the spanned steps, and schedules `Gate Off` (Release) at $t_{\text{end}} = t_{\text{start}} + (\text{durationSteps} \times \text{stepDuration})$. Overlapping or adjacent tied notes engage true Legato pitch glide without re-triggering envelopes from zero.
+3. **Native Hardware Sample Rate ($48\text{ kHz}$):**
+   * Initialize `new AudioContext({ latencyHint: 'interactive' })` without forcing $44100\text{ Hz}$ so Chrome/Android runs natively at $48000\text{ Hz}$ without resampling overhead.
+4. **Auto-Resume Watchdog, Latency Detection & Node Lifecycle Hygiene:**
+   * Attach `onstatechange` and user-gesture resume listeners so sandboxed/mobile browsers never leave the `AudioContext` suspended, and disconnect all one-shot percussion nodes via `onended` + fallback timers.
+   * Monitor `audioContext.outputLatency` and display a gentle tip recommending wired headphones if Bluetooth latency exceeds $80\text{ ms}$.
+5. **CPU Voice Pooling & Idle Bypass:**
+   * Any oscillator or sub-oscillator whose mixer level is $0\%$ is bypassed/muted so it consumes zero CPU. Melodic tracks use pooled voice graphs with smooth parameter transitions (`AudioParam.setTargetAtTime()`).
+
+---
+
+## 3. Aesthetic Direction, Ergonomics & Cross-Mode Usability
+
+### 3.1 Matte Studio Theme & Strict 8-Track Color Identity
+* **Visual Theme:** Matte Dark Studio Canvas (`#0E1015` / `#151821` elevated panels, crisp `#F3F4F6` typography, minimum $48\text{ px}$ touch targets, `touch-action: none` on all interactive sliders/pads).
+* **Strict 8-Track Color & Geometric Icon Identity:**
+  1. **Track 1 — KICK:** Coral Red (`#FF4D4D`) — `●`
+  2. **Track 2 — SNARE:** Amber Orange (`#FF9F1C`) — `◆`
+  3. **Track 3 — HI-HAT:** Electric Yellow (`#FFD60A`) — `▲`
+  4. **Track 4 — PERC / FM:** Lime Green (`#38E54D`) — `⬡`
+  5. **Track 5 — BASS:** Electric Cyan (`#00E5FF`) — `〰`
+  6. **Track 6 — LEAD:** Cobalt Blue (`#3B82F6`) — `⚡`
+  7. **Track 7 — CHORDS:** Vivid Violet (`#A855F7`) — `❖`
+  8. **Track 8 — ARP / FX:** Neon Magenta (`#EC4899`) — `✦`
+
+### 3.2 Visual Level Controls & Precision Gestures
+* **Bottom-Up & Center-Zero Visual Faders:** Every fader displays a glowing track-colored fill bar with high-contrast thumb caps and numeric readouts; bipolar controls (Pan, Fine Detune, Filter Env Depth, Micro-Timing, Crossfaders) fill outward from a center-zero line.
+* **Live Modulation & P-Lock Ghost Rings:** Secondary glowing indicators orbit or slide along controls in real time during playback to visualize active LFOs, envelopes, macros, and recorded Parameter Locks.
+* **Two-Finger Precision Drag ($10\times$ Fine Mode) & Double-Tap Reset:** Holding a second finger anywhere on the screen (or holding `Shift` on a PC keyboard) while dragging any fader/knob engages $10\times$ micro-precision; double-tapping any control resets it cleanly to its neutral default.
+* **Expandable Bottom Deck (`⤢ EXPAND / FOCUS` Toggle):** Expands Zone 3 smoothly from $45\%$ to **$78\%$ screen height** (collapsing Zone 2 into a compact 1-line mini-playhead strip) during deep Pro synthesis, Piano Roll editing, or full-screen Live Performance Clip Launching, then collapses back to the full 8-track overview in one tap.
+
+### 3.3 Child-Safe & Single-Pointer Safeguards
+* **Kid-Safe / Parent Lock (`🔒 SAFE MODE`):** Available in the Project Menu (requires a 3-second press-and-hold to unlock). Hides destructive actions (`CLEAR PAT`, `DELETE PROJECT`, `OVERWRITE PRESET`) and locks the app in `PLAY` mode while keeping all creative tools (`MUTATE`, `UNDO`, `PADS`, `KAOSS PAD`, `PERFORMANCE REMIX`, `ANSWER ME`, `MAGIC CHORD`) wide open.
+* **Dual-Layer Friendly Labels (`PLAY` Mode):** Preserves authentic synthesis terminology while pairing every slider with a playful icon and 1-word intuition subtitle:
+  * `CUTOFF` $\rightarrow$ *"Brightness ☀️"*
+  * `RESONANCE` $\rightarrow$ *"Laser Squelch 🛸"*
+  * `FM DIRT` $\rightarrow$ *"Robot Grit 🤖"*
+  * `AMP DECAY` $\rightarrow$ *"Tail Length ☄️"*
+  * `PITCH ENV` $\rightarrow$ *"Zap Punch ⚡"*
+  * `DETUNE` $\rightarrow$ *"Super Wide 🌈"*
+* **Dual-Workflow Parameter Locks (`Hold-Step` + `🔒 P-LOCK` Latch Mode):**
+  * **Two-Finger / Tabletop Shortcut:** Hold any step on the grid and drag any bottom synth slider to write a Parameter Lock.
+  * **Single-Pointer `🔒 P-LOCK` Latch Button:** Toggle `P-LOCK` ON next to `RECORD`, tap any step to select it with a glowing amber frame, and adjust any number of synth sliders using a single mouse cursor or one-handed tablet hold.
+* **`MUTATE (🎲)` Visual Feedback & Starter Projects:** Pressing `MUTATE` highlights altered sliders with a brief sparkle border and toast readout, and the app ships with **6 Ready-to-Remix Starter Projects** (*Space Mission*, *8-Bit Boss Battle*, *Robot Dance*, *Cyber Jungle*, *Neon Highway*, *Starlight Chill*).
+* **Interactive 3-Step First-Launch Coach Marks:** Dismissible 3-bubble walkthrough on first launch (re-openable anytime via the `?` help icon).
+
+---
+
+## 4. Screen Architecture (`100vw` $\times$ `100dvh` Landscape 3-Zone Layout)
+
+### Zone 1: Top Global Transport, Status & Master Bar (~60px Height — Always Visible)
+* **Transport & Recording:**
+  * **`PLAY / STOP`**, **Global `RECORD (●)`**, **1-Bar Count-In**, **Input Quantize (`Q:ON/OFF`)**, **`🔒 P-LOCK` Latch**, and independent **`NOTES`** / **`MOTION`** recording filter pills.
+  * **`BPM` Control** ($40\text{–}240\text{ BPM}$ steppers/scrub) + **`TAP TEMPO`** + **Global `SWING`** / **Groove Template Selector** (`Straight`, `MPC 58%`, `MPC 66%`, `Drunken Hip-Hop`, `UK Garage`).
+* **Mode, Performance & Scene Controls:**
+  * **`PLAY / PRO` Mode Switch:** Toggles between **Beginner (`PLAY`)** and **Pro (`STUDIO`)** interfaces.
+  * **`ECO` Mode Toggle:** Throttles canvas redraws to 30fps for older tablets/Chromebooks.
+  * **`FILL` Performance Button (Pro):** Hold to trigger steps marked with the `FILL` condition.
+  * **`A/B SCENE CROSSFADER` (Pro):** Horizontal performance slider morphing smoothly between `Scene A` and `Scene B` multi-track parameter snapshots.
+  * **`🔥 BUILD & DROP` Hold Strip:** Momentarily high-passes kick/bass, swells global reverb, opens lead cutoff, and triggers a snare roll—releasing snaps the mix back to full low-end punch on the next beat.
+* **Key/Scale, Pattern Bank, Audio Status & Master Output:**
+  * **Global `SONG KEY / SCALE` Pill** (12 Root Notes $\times$ 7 Scale Modes: Minor, Major, Dorian, Phrygian, Minor Pentatonic, Harmonic Minor, Chromatic).
+  * **Pattern Matrix (`A1–D4` / `16–32` Slots):** Bar-quantized pattern launching + **`CLONE`** button.
+  * **`UNDO` / `REDO`**, **`PROJECT` Menu** (Save/Load/Kits/MIDI/Export WAV, `.mid`, & 8 Stems), **Audio Engine Status Pill** (`48kHz ● READY` / `⚠️ TAP TO WAKE AUDIO`), **Master Stereo LED VU Meter**, and **Master Volume Slider**.
+
+---
+
+### Zone 2: Middle 8-Track Extendable Step Sequencer & Inline Mini-Mixer (~45% Height)
+* **Sequencer Top Utility Strip:**
+  * **Togglable Active Bar Length (`[1B] [2B] [3B] [4B]`):** Sets the active pattern loop length dynamically between $1$ and $4$ bars ($16$ to $64$ steps, expandable to $8$ bars).
+  * **Bar Page View Tabs (`[BAR 1]`–`[BAR 4]`) + `FOLLOW` Toggle:** Auto-follows playhead across bars or locks onto a specific bar for fill editing.
+  * **Per-Track Length, Subdivision & Phrase Reset:** Supports polymeters (e.g., 5-step or 12-step track against 16-step beat), straight/triplet/dotted divisions (`1/4` through `1/64`, `1/8T`, `1/16T`, `1/8D`, `1/16D`), and a **`BAR RESET` (`Off`, `2 Bars`, `4 Bars`)** switch that resets polymeters cleanly to step 1 at phrase boundaries.
+  * **Euclidean Rhythm Generator Popover (Pro):** Circular geometric wheel (`STEPS`, `PULSES`, `ROTATION`) that evenly distributes hits across any track in real time.
+  * **Color-Coded Beat Ruler (`1 . . . 2 . . . 3 . . . 4 . . .`):** Sits directly above Track 1 to anchor beat positions visually.
+* **8 Horizontal Track Rows:**
+  * **Left Inline Track Header:** Track select pill (color-coded), **Per-Track Record Arm (`●` / Long-Press Lock `🔒`)**, **Mute (`M`)**, **Solo (`S`)**, **Inline Horizontal Volume Level Bar**, and **Track Utility Menu (`•••`)** (`Copy/Paste Track Steps`, `Shift Pattern Left/Right`, `Duplicate Bar 1 → Bar 2`, `Clear P-Locks Only`, `Add Ghost Pocket` on drums, and `🪄 ANSWER ME` on melodic tracks).
+  * **Right 16-Step Grid with Extendable Multi-Step Notes:**
+    * **First-Cell Intent Lock Swipe:** Swiping across cells locks into *Paint ON* or *Erase OFF* based on the first cell touched, preventing accidental checkerboard toggles.
+    * **Extendable Multi-Step Note Gates (`[●═════════]`):** Touching a step on melodic tracks (`5–8`) and sliding right fuses consecutive boxes into a **continuous rounded pill** with a draggable right-edge handle so notes sustain across beats (and optionally paints multi-step rolls on drum tracks `1–4`).
+    * **Expressive Step Ratchets & Curves (Pro):** Swipe up/down on a step to set ratchet subdivisions ($\times 2$, $\times 3$, $\times 4$, $\times 6$) and choose between four musical ratchet curves: **`Flat`**, **`Fade Out (Echo)`**, **`Swell (Crescendo)`**, and **`Bouncing Ball (Gravity)`**.
+    * **Probability & Conditional Trigs (Pro):** Set trigger probability ($10\%\text{–}100\%$) and Elektron-style conditions (`1:2`, `2:2`, `1:4`, `4:4`, `FILL`, `PRE`, `!PRE`).
+
+---
+
+### Zone 3: Bottom Contextual Deck (~45% Height, Expandable to 78% — 6-Tab Workspace)
+
+#### Tab 1: `SYNTH ENGINE` (Adaptive Beginner Macro View vs. Pro Multi-Oscillator Synthesizer)
+* **In `BEGINNER (PLAY)` Mode:**
+  * Engine switcher, `< >` preset browser, **`HIT`**, **`MUTATE (🎲)`**, **`A/B COMPARE`**, **Live Zero-Crossing Oscilloscope / FFT Spectrum**, interactive **ADSR Mountain**, **`KEY LOCK`** harmonic drum tuner (on Tracks 1 & 4), and **6 Large Visual Parameter Sliders** with dual-layer friendly labels.
+* **In `PRO (STUDIO)` Mode (Full Analog/Hybrid Synthesizer Per Track):**
+  1. **Voice Allocation, Unison & Portamento / Glide Module:**
+     * **Voice Modes:** `Mono` (with `Legato` toggle and `Note Priority`: *Last*, *Low*, *High*), `Poly` ($4\text{–}8$ voices), and **`Unison` Mode** ($2\text{–}4$ stacked voices per note with **`Unison Detune`** and **`Unison Stereo Spread`**).
+     * **Portamento / Glide Engine:** **`Glide Time`** ($0\text{ ms}\text{ to }1000\text{ ms}$), **`Glide Trigger`** (*Always* vs. *Legato Only* on tied/overlapping notes), and **`Glide Curve`** (*Linear* vs. *Exponential*).
+     * **Analog Imperfection (`Voice Drift / Analog Slop`):** Subtle per-voice micro-variations ($\pm 3\text{ cents}$ pitch warmth, $\pm 1.5\%$ filter cutoff tolerance, and slight envelope variance) so chords and synth lines sound organic and alive.
+  2. **4-Oscillator + Noise Voice Mixer (Combinable by Level $0\text{–}100\%$):**
+     * **`OSC 1` (Primary):** Waveforms (`Sine`, `Triangle`, `Sawtooth`, `Square / Variable PWM`, `SuperSaw`), Coarse Pitch ($-24\text{ to }+24\text{ st}$), Fine Detune ($\pm 100\text{ cents}$), Pulse Width, **`Key-Sync` Phase Retrigger** vs. `Free-Running`, **`Key Track`** toggle, and **Level ($0\text{–}100\%$)**.
+     * **`OSC 2` (Secondary / FM Modulator):** Full waveform set, Coarse/Fine Pitch, **Hard Sync to Osc 1**, **FM Cross-Mod Depth (`Osc 2 → Osc 1`)**, `Key-Sync` phase toggle, `Key Track` toggle, and **Level ($0\text{–}100\%$)**.
+     * **`SUB 1` ($-1\text{ Octave}$ Sub-Oscillator):** Tuned $-12\text{ st}$ below Osc 1; selectable `Sine` (pure deep sub) or `Square / Pulse` (hollow analog warmth), `Key-Sync` phase lock, and independent **Level ($0\text{–}100\%$)**.
+     * **`SUB 2` ($-2\text{ Octaves}$ / Harmonic Sub-Oscillator):** Switchable between $-24\text{ st}$ ($-2\text{ Oct}$), $-12\text{ st}$ detuned, or $+7\text{ st}$ (`Fifth`); selectable `Sine` / `Triangle` / `Square`, and independent **Level ($0\text{–}100\%$)**.
+     * **`NOISE` Generator:** Selectable `White`, `Pink`, or `Metallic` noise with independent **Level ($0\text{–}100\%$)** and **Ring Mod** switch.
+  3. **Multi-Mode Resonant Filter & Analog Drive:**
+     * Filter Types: $12\text{ dB/oct}$ & $24\text{ dB/oct}$ Low-Pass, Band-Pass, High-Pass, Notch.
+     * Controls: **Cutoff Frequency** ($20\text{ Hz}\text{ to }20\text{ kHz}$ logarithmic), **Resonance** (self-oscillation capable), **Pre-Filter Analog Drive/Saturation**, **Keyboard Tracking ($0\text{–}100\%$)**, and **Bipolar Filter Envelope Depth**.
+  4. **3 Independent Envelopes (`AMP ENV`, `FILTER ENV`, `MOD DADSR ENV`):**
+     * Dedicated `Delay`, `Attack`, `Decay`, `Sustain`, `Release` controls with selectable curve shapes (`Linear`, `Exponential`) and loopable mode on `MOD ENV`.
+  5. **Dual LFOs (`LFO 1` & `LFO 2`) + 16-Step Modulation Sequencer:**
+     * Waveforms (`Sine`, `Triangle`, `Saw`, `Square`, `Sample & Hold Random`), **Free Hz** ($0.05\text{–}40\text{ Hz}$) or **Tempo-Synced Divisions** (`4/1` to `1/32T`), **Fade-In**, and **Phase Retrigger**.
+     * **16-Step Mod Sequencer:** Drawable bar-chart modulation lane synced to the beat for rhythmic filter wobbles, trance gates, or wave crossfades.
+  6. **Drag-and-Drop 8-Slot Visual Modulation Matrix (`SOURCE → CURVE → DEPTH → DESTINATION`):**
+     * **Drag-and-Drop Badges:** Drag `LFO 1`, `LFO 2`, `FILTER ENV`, `MOD ENV`, or `MOD SEQ` badges directly onto any synth slider/knob to assign a free slot immediately.
+     * **Sources:** `LFO 1`, `LFO 2`, `Filter Env`, `Mod Env`, `Mod Sequencer`, `Note Velocity` (with built-in **Acoustic Touch Response** timbre curve), `Key Track / Note Pitch`, `Per-Voice Random / Analog Drift`, `Osc 2 Audio-Rate FM`, `Kaoss X`, `Kaoss Y`, `Performance Macros 1–8`.
+     * **Destinations:** `Filter Cutoff`, `Filter Resonance`, `Pre-Filter Drive`, `Osc 1 Pitch`, `Osc 2 Pitch`, `PWM`, `FM Cross-Mod Depth`, `Osc 1/2/Sub 1/Sub 2/Noise Levels`, `Stereo Pan`, `Stereo Width`, `Unison Detune`, `Glide Time`, `Amp Attack/Decay`, `Filter Env Amount`, `LFO 1/2 Rate & Depth`, `Insert FX Params 1–2`, `Reverb/Delay Sends`.
+
+#### Tab 2: `MIXER & FX` (8-Channel Console, Per-Channel Insert Rack & Mastering Bus)
+* **8 Multi-Touch Channel Strips:**
+  * Track Header, `M` / `S` toggles, **Bipolar Stereo Pan (`L ◄──●──► R`)**, **Stereo Width ($0\%\text{ Mono to }200\%\text{ Wide}$) + Sub-Bass Mono-Maker ($< 120\text{ Hz}$)**, **`REVERB SEND`**, **`DELAY SEND`**, **Full-Travel Glowing Volume Fader**, and **Live Per-Channel LED VU Meter**.
+* **Per-Channel Insert FX Rack (Pro Mode — Reorderable / Bypassable per Track):**
+  1. **Analog Drive / Wavefolder** (tube warmth to hard wavefolding).
+  2. **Transient Shaper** (independent **Attack Punch** and **Sustain Tail** shaping without raising peak volume).
+  3. **Bitcrusher / Sample-Rate Reducer** (`AudioWorklet` lo-fi crunch).
+  4. **Stereo Chorus / Flanger / Phaser + Tape Wow & Flutter**.
+  5. **4-Band Parametric EQ** with live FFT spectrum overlay.
+  6. **Channel Compressor & Sidechain Ducker:** Select any other track (e.g., `Track 1: Kick`) as the sidechain key input to pump/duck `Track 5: Bass` or `Track 7: Chords` automatically.
+* **Global FX Buses & 3-Stage Master Bus Mastering Strip:**
+  * **Global Reverb & Stereo Delay:** Lightweight **Algorithmic Global Reverb** (Room Size, Damping, Return) and **Tempo-Synced Stereo Delay** (`1/8`, `1/8D`, `1/16`, `1/16T`, Feedback, Filter, Return).
+  * **Master Bus Mastering Chain:**
+    1. **Master Glue Compressor** (Threshold, Ratio, Attack, Release, Makeup Gain + Gain Reduction meter).
+    2. **Master 3-Band / Tilt EQ** (quick tonal warmth/brightness balance).
+    3. **True-Peak Brickwall Limiter** ($-0.3\text{ dBFS}$ ceiling) + **Master DJ Filter**.
+
+#### Tab 3: `PADS & ARP` (Functional Scale Grid, Smart Voice-Led Chords, Resampler & Arpeggiator)
+* **4$\times$4 Multi-Touch Pad Grid with Y-Axis Velocity & Acoustic Touch Response:**
+  * *Scale Mode with Functional Note Color-Coding:* Highlights notes by harmonic gravity—**Home Notes** (Root & 5th) in solid bright track color, **Color Notes** (3rd & 7th) in medium glowing tint, and **Tension Notes** (2nd, 6th, Leading Tone) with a pulsing outline.
+  * *Smart 1-Finger Chord Mode:* Plays diatonic chords (`Triad`, `7th`, `9th`, `Sus4`, `Spread`) with **`VOICE LEADING`** (automatic smooth inversions), **`CHORD STRUM`** ($0\text{–}60\text{ ms}$ up/down/alternating strum), **`✨ MAGIC CHORD`** (momentary modal-interchange borrowed chord button), **1-Tap Genre Chord Progression Generator**, and **Smart Bassline Follow (`FOLLOW CHORDS`)**.
+  * *8-Drum Kit & Resample Pad Mode:* Simultaneous finger-drumming across drum tracks plus an **Internal Live Resampler (`RESAMPLE`)** pad that captures $1\text{–}4$ bars of live Kaoss/Stutter/Synth performance into an in-memory `AudioBuffer` to re-trigger on a pad or download immediately as a `.wav` sample.
+* **Built-In Arpeggiator (`ARP` + `LATCH`):** Synced to master clock (`Up`, `Down`, `Up/Down`, `Random`, `Played`) across `1/8`, `1/16`, `1/32`, and triplet rates.
+
+#### Tab 4: `KAOSS PAD` (Korg Kaossilator / Kaoss Pad X/Y Performance Surface)
+* **9-Target Routing Bar:** Multi-select pills (`[1: KICK]`–`[8: ARP]` + `[★ MASTER]`) to route X/Y gestures to single tracks, groups of tracks, or the master bus.
+* **Dual Kaoss Modes:**
+  * *Synth Play Mode (Kaossilator):* X-axis plays scale-locked notes via a tempo-synced gate arpeggiator; Y-axis sweeps Cutoff & FM depth.
+  * *FX Warp Mode (Kaoss Pad):* Warps live track audio through selectable X/Y macro pairs (`Cutoff × Resonance`, `Delay Time × Feedback`, `Bitcrush × Pitch`, `Tape Stop × Beat Stutter`).
+* **Visual Trail, `HOLD / FREEZE`, & Momentary Stutter Ribbons (`1/8`, `1/16`, `1/32`).**
+
+#### Tab 5: `PERFORMANCE` (Ableton Session-Style Live Clip Matrix & Dual-Deck Pattern Crossfader)
+* **Dual-Mode Adaptation:**
+  * **In `BEGINNER (PLAY)` Mode:** Displays big, glowing color-coded pads per track (`Beat 1`, `Beat 2`, `Bass A`, `Bass B`) with `1-Bar` launch quantization locked ON—turning the tablet into an effortless, unbreakable live DJ/remix board for a 7-year-old.
+  * **In `PRO (STUDIO)` Mode:** Unlocks the full $8 \times 8$ Per-Track Clip Launch Matrix, Launch Quantize selector (`1/16` to `2 Bars` + `Legato` Phase-Lock), Dual-Deck `A/B` Pattern Crossfader with 3 transition curves, Momentary Punch-In FX pads, and **`📸 CAPTURE`** to Pattern/Song Timeline.
+* **Left/Center: 8-Track $\times$ 8-Row Per-Track Clip Launch Matrix + Master Scene Column:**
+  * **Independent Track Clip Routing:** Columns represent Tracks `1–8` (color-coded) and rows represent Pattern slots `A1–B4` (scrollable to `D4`). Tap any cell to assign that track independently to any pattern—for example, running **Kick from `A1`**, **Snare & Hats from `B2`**, **Acid Bass from `C1`**, and **Chords from `A4`** simultaneously.
+  * **Visual Clip States:** Active playing clips glow solidly in their track color with a mini step-progress ring; queued clips pulse until the next launch boundary; empty pattern tracks appear dimmed.
+  * **Master Scene Launch Column (Right Edge):** Dedicated **`LAUNCH ROW`** buttons (`A1`, `A2`, `B1`, etc.) to trigger full 8-track pattern drops in a single tap.
+  * **Launch Quantization & `LEGATO` Phase-Lock:** Selectable trigger quantize (`1/16`, `1 Beat`, `1 Bar`, `2 Bars`, `Immediate`). When **`LEGATO`** is active, switching a track's clip mid-bar jumps straight to the *exact current step offset* in the destination pattern—enabling seamless mid-bar drum fills without losing beat alignment.
+* **Right Performance Console: Dual-Deck `A / B` Pattern Crossfader, Punch-In FX & Capture:**
+  * **Dual-Deck `A / B` Pattern Crossfader:** Assign any pattern (or custom multi-track clip combination) to **Deck A** and another to **Deck B**, then glide a wide horizontal **Pattern Crossfader** between them with **3 Selectable Crossfade Modes**:
+    1. **`DJ EQ / GAIN BLEND`:** Smoothly fades Deck A out while bringing Deck B in, featuring an automatic **Low-End Bass Swap** curve so two kicks or sub-basses never double-up and clip the master limiter.
+    2. **`FILTER MORPH`:** High-passes Deck A out into thin air while smoothly opening a warm low-pass filter on Deck B.
+    3. **`STEP PROBABILITY MORPH` (Generative Transition):** As the crossfader slides from $0\%$ to $100\%$, each step progressively switches its trigger source from Pattern A to Pattern B—creating an organic rhythmic mutation between the two patterns mid-transition.
+  * **Momentary Punch-In FX Pads (`SP-404` / `OP-Z` Style):** Hold down oversized tactile pads to apply temporary performance effects that snap cleanly back on release:
+    * **`TAPE STOP`** (vinyl brake pitch/tempo slowdown)
+    * **`BEAT REPEAT`** (`1/8`, `1/16`, `1/32` rhythmic stutter)
+    * **`DUB WASH OUT`** ($100\%$ Reverb/Delay echo throw)
+    * **`808 SUB DROP`** (synthesized sub-bass boom impact)
+    * **`HPF RISER`** (instant high-pass tension sweep)
+  * **Capture Combination (`📸 CAPTURE TO PATTERN / SONG`):** One-tap capture freezes the currently active mix-and-match track combination into a new pattern slot (`D1–D4`) or appends it directly as a block in the **Song Arranger** timeline.
+
+#### Tab 6: `PIANO ROLL & SONG` (Extendable Notes, Visual Velocity/Timing Lanes, Song Arranger & Exports)
+* **Melodic Piano Roll + Synchronized Bottom Velocity & Micro-Timing Lane:**
+  * **Folded Scale Grid (Default) with Functional Row Coloring:** Hides out-of-key rows so every horizontal pitch lane is in-key and finger-sized, showing **Home / Color / Tension** row tints and draggable right-edge note length bars + **`GATE %` Slider** ($25\%$ staccato pluck to $100\%$ legato tie).
+  * **`🪄 ANSWER ME` (2-Bar Call-and-Response Co-Play):** Analyzes a 1-bar "Call" melody in `Bar 1` and generates a complementary, rhythmically mirrored "Response" melody in `Bar 2` that resolves onto a Home note.
+  * **Per-Track, Per-Note Visual Velocity Lane (Docked Directly Below Piano Roll & Step Grid):**
+    * Displays vertical **Velocity Stems & Caps ($1\text{–}127$ / $0\text{–}100\%$)** aligned directly under every note/step in the track's neon color.
+    * **Swipe-to-Sculpt Gestures:** Drag individual bars up/down or swipe horizontally across all 16 steps to draw smooth hi-hat crescendos, snare rolls, and human grooves in one sweep. In polyphonic chords, tapping an individual note highlights its dedicated velocity stem.
+    * **One-Tap Velocity Tools:** `ACCENT 1/4`, `UP RAMP`, `DOWN RAMP`, `ALTERNATE`, `HUMANIZE (±15%)`.
+    * **Micro-Timing Nudge Sub-Lane (Pro):** Slide individual steps early or late ($-50\%$ to $+50\%$ of a step) for Dilla-style pocket and laid-back grooves.
+* **Linear Song Arranger, Web MIDI & Multi-Format Export:**
+  * Arrange pattern blocks (`A1–D4`) with repeat counts ($\times 1$, $\times 2$, $\times 4$, $\times 8$) and **Per-Block Mute & Master Filter Overrides**.
+  * **Performance Macros ($1\text{–}8$):** Assignable multi-parameter macro sliders for live song transitions.
+  * **Web MIDI I/O & Clock Sync:** Bidirectional USB-C/Bluetooth MIDI note input, `MIDI Learn` CC mapping, and MIDI Clock Start/Stop/Continue sync.
+  * **Multi-Format Exports:**
+    * **`EXPORT MASTER WAV`** (renders stereo master via `OfflineAudioContext` through the 3-stage Mastering Strip).
+    * **`EXPORT 8 STEMS (.WAV)`** (renders isolated Kick, Snare, Hat, Perc, Bass, Lead, Chords, and Arp `.wav` stems for DAW mixing).
+    * **`EXPORT MIDI (.MID)`** (exports multi-track Standard MIDI File preserving extendable note durations, velocities, and micro-timing).
+
+---
+
+## 5. Desktop PC Keyboard Shortcuts & QWERTY Note Input (`STUDIO` Mode)
+* **`Space`:** Play / Stop
+* **`R`:** Toggle Global Overdub Record
+* **`1`–`8`:** Select & Focus Track `1`–`8`
+* **`M` / `S`:** Mute / Solo focused track
+* **`L`:** Toggle `🔒 P-LOCK` Latch Mode
+* **`Ctrl/Cmd + Z` / `Ctrl/Cmd + Shift + Z`:** Undo / Redo
+* **`Shift + Pointer Drag`:** Engage $10\times$ Fine Precision control on any fader/knob
+* **`A S D F G H J K` & `W E T Y U`:** Play live scale/chromatic notes on the focused track without an external MIDI keyboard (`Z` / `X` shift octave down/up).
+
+---
+
+## 6. Comprehensive TypeScript Data Schema (`IndexedDB`, `.json`, `.mid`, `.wav`)
+
+```typescript
+export type AppMode = 'beginner' | 'pro';
+export type VoiceMode = 'mono' | 'poly' | 'unison';
+export type NotePriority = 'last' | 'low' | 'high';
+export type GlideTrigger = 'always' | 'legato';
+export type GlideCurve = 'linear' | 'exponential';
+
+export type OscillatorWave = 'sine' | 'triangle' | 'sawtooth' | 'square' | 'pwm' | 'supersaw';
+export type FilterType = 'lp12' | 'lp24' | 'bp12' | 'hp12' | 'notch';
+export type LfoWave = 'sine' | 'triangle' | 'saw' | 'square' | 'sample-hold';
+export type RatchetCurve = 'flat' | 'fade-out' | 'swell' | 'bouncing-ball';
+export type TrigCondition = 'ALWAYS' | '1:2' | '2:2' | '1:4' | '2:4' | '3:4' | '4:4' | 'FILL' | 'PRE' | '!PRE';
+
+export type LaunchQuantize = 'immediate' | '1/16' | '1-beat' | '1-bar' | '2-bars';
+export type CrossfadeCurveMode = 'dj-eq-blend' | 'filter-morph' | 'step-probability-morph';
+
+export type Subdivision =
+  | '1/4' | '1/8' | '1/16' | '1/32' | '1/64'
+  | '1/4T' | '1/8T' | '1/16T' | '1/32T'
+  | '1/8D' | '1/16D';
+
+// Standardized Parameter Dot-Path Convention: e.g. "tracks.4.synth.filter.cutoff"
+export type ParameterDotPath = string;
+
+export interface PerformanceSessionState {
+  activeTrackPatterns: string[];          // 8 pattern IDs (one per track 0..7), e.g. ['A1','B2','A1','A1','C1','A1','A4','A1']
+  queuedTrackPatterns: (string | null)[]; // Pending quantized clip switches per track
+  launchQuantize: LaunchQuantize;
+  legatoPhaseLock: boolean;               // Preserves current step offset when switching clips mid-bar
+  deckA: string[];                        // 8-track pattern assignment snapshot for Crossfader Deck A
+  deckB: string[];                        // 8-track pattern assignment snapshot for Crossfader Deck B
+  crossfaderPosition: number;             // 0.0 (100% Deck A) to 1.0 (100% Deck B)
+  crossfadeMode: CrossfadeCurveMode;
+  activePunchInFx: 'none' | 'tape-stop' | 'beat-repeat' | 'dub-wash' | 'sub-drop' | 'hpf-riser';
+}
+
+export interface ModMatrixSlot {
+  id: number; // 0..7
+  enabled: boolean;
+  source:
+    | 'lfo1' | 'lfo2' | 'filterEnv' | 'modEnv' | 'modSeq'
+    | 'velocity' | 'keyTrack' | 'voiceRandom' | 'osc2Fm'
+    | 'kaossX' | 'kaossY' | 'macro1' | 'macro2';
+  curve: 'linear' | 'exponential' | 's-curve' | 'stepped';
+  depth: number; // -1.0 to +1.0
+  destination:
+    | 'cutoff' | 'resonance' | 'drive'
+    | 'osc1Pitch' | 'osc2Pitch' | 'pwm' | 'fmCrossMod'
+    | 'osc1Level' | 'osc2Level' | 'sub1Level' | 'sub2Level' | 'noiseLevel'
+    | 'pan' | 'stereoWidth' | 'unisonDetune' | 'glideTime'
+    | 'ampAttack' | 'ampDecay' | 'filterEnvAmt'
+    | 'lfo1Rate' | 'lfo2Rate'
+    | 'insert1Param1' | 'insert1Param2'
+    | 'reverbSend' | 'delaySend';
+}
+
+export interface ProSynthConfig {
+  // Voice Allocation, Unison, Portamento & Analog Imperfection
+  voice: {
+    mode: VoiceMode;
+    legato: boolean;
+    priority: NotePriority;
+    polyVoices: number;       // 4..8
+    unisonVoices: number;     // 2..4
+    unisonDetune: number;     // 0..100 cents
+    unisonSpread: number;     // 0..1 stereo width
+    glideTime: number;        // 0..1000 ms
+    glideTrigger: GlideTrigger;
+    glideCurve: GlideCurve;
+    analogSlop: number;       // 0..1 per-voice pitch/filter/env organic drift
+    keyTunedDrum: boolean;    // Auto-tunes Kick/Perc fundamental to global Song Key
+  };
+
+  // 2 Primary Oscillators + 2 Sub-Oscillators + Noise
+  osc1: { wave: OscillatorWave; coarse: number; fine: number; pwm: number; keySync: boolean; keyTrack: boolean; level: number };
+  osc2: { wave: OscillatorWave; coarse: number; fine: number; hardSync: boolean; fmDepth: number; keySync: boolean; keyTrack: boolean; level: number };
+  sub1: { wave: 'sine' | 'square'; octaveOffset: -12; keySync: boolean; level: number };
+  sub2: { wave: 'sine' | 'triangle' | 'square'; semitoneOffset: -24 | -12 | 7; keySync: boolean; level: number };
+  noise: { type: 'white' | 'pink' | 'metallic'; ringMod: boolean; level: number };
+
+  // Multi-mode Filter & Drive
+  filter: {
+    type: FilterType;
+    cutoff: number;           // 20..20000 Hz
+    resonance: number;        // 0.5..20 Q
+    drive: number;            // 0..1
+    keyTrack: number;         // 0..1
+    envDepth: number;         // -1..1
+    velocityTimbre: number;   // 0..1 built-in Acoustic Touch Response depth
+  };
+
+  // 3 Independent Envelopes
+  ampEnv: { attack: number; decay: number; sustain: number; release: number };
+  filterEnv: { attack: number; decay: number; sustain: number; release: number };
+  modEnv: { delay: number; attack: number; decay: number; sustain: number; release: number; loop: boolean };
+
+  // Dual LFOs + 16-Step Mod Sequencer + 8-Slot Mod Matrix
+  lfo1: { wave: LfoWave; sync: boolean; rateHz: number; rateDiv: Subdivision; fadeIn: number; retrigger: boolean };
+  lfo2: { wave: LfoWave; sync: boolean; rateHz: number; rateDiv: Subdivision; fadeIn: number; retrigger: boolean };
+  modSequencer: { enabled: boolean; subdivision: Subdivision; steps: number[] }; // 16 values (-1..1)
+  modMatrix: ModMatrixSlot[];
+
+  // Beginner Mode 6-Macro Snapshot (mapped dynamically to Pro params)
+  beginnerMacros: Record<string, number>;
+}
+
+export interface InsertFxUnit {
+  type: 'drive' | 'transientShaper' | 'bitcrusher' | 'chorusTape' | 'eq4' | 'sidechainComp';
+  enabled: boolean;
+  params: Record<string, number>;
+  sidechainSourceTrack?: number; // e.g., 0 (Kick)
+}
+
+export interface NoteEvent {
+  midiNote: number;
+  velocity: number;           // 0.01..1.0 (edited in Visual Velocity Lane)
+  durationSteps: number;      // >= 1 (1 = single step, >1 = extended multi-step tie pill)
+  glide: boolean;
+}
+
+export interface StepData {
+  active: boolean;
+  notes: NoteEvent[];         // Single notes, drum hits, or voice-led polyphonic chords
+  velocity: number;           // Step-level velocity (0.01..1.0)
+  microTiming: number;        // -0.50 to +0.50 step offset
+  ratchet: 1 | 2 | 3 | 4 | 6;
+  ratchetCurve: RatchetCurve;
+  probability: number;        // 0.0..1.0
+  condition: TrigCondition;
+  pLocks: Record<string, number>;
+}
+
+export interface TrackConfig {
+  index: number;
+  name: string;
+  color: string;
+  presetName: string;
+  synth: ProSynthConfig;
+  insertFx: InsertFxUnit[];
+  voiceLeading: boolean;      // Smooth chord inversions (Track 7)
+  chordStrumMs: number;       // 0..60 ms strum spread
+  mixer: {
+    volume: number;
+    pan: number;
+    stereoWidth: number;      // 0..2.0 (0 = mono, 1 = normal, 2 = extra wide)
+    bassMonoHz: number;       // 0..200 Hz mono-maker cutoff (default 120 Hz)
+    reverbSend: number;
+    delaySend: number;
+    mute: boolean;
+    solo: boolean;
+  };
+  recordArmed: boolean;
+  recordLocked: boolean;
+}
+
+export interface Pattern {
+  id: string;
+  bars: 1 | 2 | 3 | 4;
+  tracks: {
+    trackIndex: number;
+    lengthSteps: number;
+    phraseResetBars: 0 | 2 | 4; // Resets polymeters cleanly every 2 or 4 bars
+    subdivision: Subdivision;
+    steps: StepData[];
+  }[];
+}
+
+export interface PerformanceMacro {
+  id: number; // 0..7
+  name: string;
+  value: number; // 0..1
+  mappings: { path: ParameterDotPath; min: number; max: number }[];
+}
+
+export interface MidiCcMapping {
+  cc: number;
+  channel: number;
+  targetPath: ParameterDotPath;
+}
+
+export interface SongBlock {
+  id: string;
+  patternId: string;
+  repeats: number;
+  mutedTracks: number[];
+  masterFilterCutoff?: number;
+}
+
+export interface GrooveboxProject {
+  id: string;
+  name: string;
+  updatedAt: number;
+  mode: AppMode;
+  ecoMode: boolean;
+  safeLockEnabled: boolean;   // Kid-safe parent lock
+  bpm: number;
+  grooveTemplate: string;
+  swing: number;
+  rootNote: number;
+  scaleName: string;
+  tracks: TrackConfig[];
+  patterns: Record<string, Pattern>;
+  performance: PerformanceSessionState;
+  songTimeline: SongBlock[];
+  macros: PerformanceMacro[];
+  sceneA: Record<ParameterDotPath, number>;
+  sceneB: Record<ParameterDotPath, number>;
+  midiMappings: MidiCcMapping[];
+  globalFx: {
+    reverbSize: number;
+    reverbDamp: number;
+    reverbReturn: number;
+    delayDiv: Subdivision;
+    delayFeedback: number;
+    delayReturn: number;
+    masterFilterCutoff: number;
+    masterCompressorThreshold: number;
+    masterCompressorRatio: number;
+    masterTiltEq: number;
+    masterLimiterCeilingDb: number; // -0.3 dBFS
+    masterVolume: number;
+  };
+}
+```
+
+### Decoupled `IndexedDB` Storage Stores & Export Formats
+1. **`working_session`:** Continuous autosave of active session state.
+2. **`projects`:** Self-contained full project snapshots (patterns, extendable note ties, per-track live performance routing, song arrangement, embedded synth/insert FX settings, macros, scenes, MIDI CC mappings).
+3. **`global_track_presets`:** Shared single-track patches accessible across all projects (Factory + User presets).
+4. **`global_kits`:** Shared 8-track sound/mixer palettes loadable into any project without overwriting patterns.
+5. **Portable File Exports:** `.json` project bundles, `.mid` multi-track Standard MIDI Files, stereo mastered `.wav`, isolated 8-track `.wav` stems, and live resampled `.wav` loops.

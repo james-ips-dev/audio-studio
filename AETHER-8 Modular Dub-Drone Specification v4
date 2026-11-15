@@ -1,0 +1,208 @@
+# AETHER-8 Modular Dub-Drone Synthesizer — Technical & Product Specification (`drone_modular_v4.md`)
+
+## 1. Product Vision & *Coppice Halifax* Sonic Identity
+
+* **Product Concept:** A self-contained, browser-based virtual modular synthesizer, generative biosphere lab, and beat-driven dub-drone workstation engineered specifically for creating slow-tempo, hypnotic soundscapes inspired by *Coppice Halifax* (Brian Grainger).
+* **Target User & Workflow:** Designed for adult sound designers and electronic musicians seeking **extremely granular virtual-analog control**, tactile Eurorack/Buchla patch-cable routing, rich noise/tape textures, organic environmental synthesis, and beat-driven undertone pulses without traditional dance-music groovebox constraints.
+* **Core Sonic Pillars:**
+  1. **Multi-Pattern, Multi-Bar Beat-Driven Soundscape Foundation:** Sitting at the **top of the modular stack**, the X0X undertone trigger sequencer supports **4 selectable pattern banks (`PAT A`, `PAT B`, `PAT C`, `PAT D`)** with seamless bar-quantized switching & `CHAIN` sequencing, **selectable bar lengths (`1 BAR [16]`, `2 BARS [32]`, `4 BARS [64]`)**, and **polyrhythmic per-track step lengths (`4–16`)**.
+  2. **Beat-Step Triggered & Phase-Locked Time Generators:** Time and modulation generators (`03 // EUCLIDEAN & CLOCK` and `08 // SLOW LFO & CHAOS`) can be directly triggered, advanced, and phase-reset by individual X0X beat steps, bar starts, or drum tracks—creating tight, hypnotic dub lockstep between the rhythm and multi-bar drone sweeps.
+  3. **Global `⚡ HARSH` / `☁️ SOFT SILK` Timbre Character Toggle:** Instantly morphs the entire system between raw, aggressive analog saturation/wavefolding and ultra-smooth, velvety white-noise ambient warmth ($3.1\text{ kHz}$ silk mastering filter, attenuated drive/resonance, and gentle $12\text{ dB}$ low-pass filtering).
+  4. **Thick Virtual-Analog Synthesis:** Multi-oscillator harmonic swarms (`UNISON`, `5TH+OCT`, `MIN 7`, `MIN 9`), $-1$ and $-2$ octave sub-oscillators, asymmetrical tube/tape saturation, West-Coast wavefolding, and thermal component drift.
+  5. **Sculpted Noise, Biosphere Weather & Tape Degradation:** Multi-spectrum noise (`White`, `Pink`, `Brown`, `Tape Hiss`), a dedicated **5-Engine Biosphere & Weather Lab** (Rain, Flowing Water, Lapping Waves, Howling Wind, Thunder & Lightning), stochastic vinyl dust crackle generators, and multi-head damped dub tape delays.
+  6. **Direct Output Console & Granular Per-Output FX Buses:** A collapsible 10-channel direct output mixer lets you blend any module's audio output directly into the master bus through its own dedicated **4-stage granular FX processor** (`Tube Saturation → Lo-Fi Bitcrusher → Stereo Dub Chorus → Dual HPF/LPF Tilt Filter + Space Reverb Send`).
+
+---
+
+## 2. Web Audio DSP Architecture & Session Persistence ($48\text{ kHz}$ Native)
+
+* **True Audio-Rate Modular Graph:** Built on the native Web Audio API (`AudioContext` at $48\text{ kHz}$ interactive latency), allowing any audio oscillator, noise/weather generator, or CV modulator to connect directly into any audio input or `AudioParam` (frequency, filter cutoff, delay time, wavefolder drive) at full audio sample rate.
+* **Sample-Accurate Lookahead Master Clock:** A $30\text{ ms}$ lookahead scheduler inspects `audioContext.currentTime` and schedules multi-bar X0X drum triggers, per-track polyrhythms, pattern chain transitions, Euclidean polyrhythms, sub-bar dividers (`1 / 2 / 4 / 8 BARS`), beat-stepped Chaos/S&H advances, and LFO phase resets $120\text{ ms}$ ahead with catch-up protection.
+* **Phase-Lockable LFO Engine (`AudioWorklet` / Phase-Tracked `ConstantSource` + Oscillator Reset):** Supports both ultra-slow free-running frequencies ($0.02\text{–}8.0\text{ Hz}$) and **instant hard phase-reset (`0 rad`)** whenever a trigger arrives at `mod:lfoResetIn` (e.g., from `xox:barTrig` or `xox:trig1`), turning slow sine/triangle waves into tempo-locked rhythmic swells.
+* **Zero-Leak One-Shot Node Hygiene:** All percussive drum voices, vactrol sub-pulses, vinyl dust impulses, raindrop pings, and rolling thunder bursts automatically disconnect via `onended` handlers upon envelope completion so long-form ambient/drone sessions run indefinitely without memory or CPU creep.
+* **Real-Time Stereo `.wav` Session Recorder (`REC .WAV` / `STOP .WAV`):** Captures the live stereo master bus at native $48\text{ kHz}$ 16-bit PCM and automatically downloads a timestamped `.wav` file on stop.
+* **`IndexedDB` Vault & Portable `.json` Patch I/O (`💾` / `📂`):** Saves complete v4 snapshots (all 12 module parameters, 4-voice beat synth settings, all 4 X0X patterns + bar lengths + polyrhythmic lengths, stacked patch cables, modulation matrix slots, and direct output mixer FX states) to `IndexedDB` (`Aether8VaultDB`) while exporting/importing portable `.json` patch files.
+
+---
+
+## 3. Complete 12-Module Eurorack Lineup (v4 Upgrades Highlighted)
+
+### Row 1: Master Multi-Pattern Beat & Clock Foundation (Top of Stack)
+
+1. **`01 // X0X UNDERTONE SEQUENCER` (4-Pattern $\times$ 4-Bar $\times$ 4-Track Master Pulse Engine):**
+   * **4 Selectable Pattern Banks (`PAT A` | `PAT B` | `PAT C` | `PAT D`):**
+     * Tap any pattern bank to switch patterns cleanly at the next bar boundary (or immediately when paused).
+     * **`CHAIN` Mode (`A→B→C→D`):** Automatically advances through active patterns at the end of each pattern's bar length for evolving 4-part dub arrangements.
+   * **Selectable Bar Lengths (`1 BAR` [16 steps] | `2 BARS` [32 steps] | `4 BARS` [64 steps]):**
+     * **Bar Page Selector (`B1` | `B2` | `B3` | `B4`):** View and edit 16 steps per page.
+     * **`AUTO-FOLLOW` Toggle:** Automatically flips the visible page (`B1 → B2 → B3 → B4`) as the playhead traverses multi-bar sequences.
+     * **`COPY B1→ALL` Utility:** Instantly duplicates Bar 1 across Bars 2–4 so you can sculpt subtle end-of-phrase fills on Bar 4.
+   * **Polyrhythmic Per-Track Step Length (`LEN: 4–16`):**
+     * Each of the 4 tracks (`01 SUB KICK`, `02 DUB RIM`, `03 DUST HAT`, `04 WOOD TOM`) features an independent step-length selector (`4–16`), allowing e.g. an 11-step Wood Tom or 13-step Dust Hat to cycle polyrhythmically against a 16-step Sub Kick.
+   * **Per-Track Controls:** Tap track label to **Audition & Select Voice** in Module 02, **`M`** (Mute), **`LNK`** (Normalled internal trigger connection to the Analog Beat Synth), plus **`DUB GROOVE`**, **`MINIMAL`**, and **`CLEAR`** pattern generators.
+   * **Patch Outputs:**
+     * `TRK 1 TRG`, `TRK 2 TRG`, `TRK 3 TRG`, `TRK 4 TRG` (individual track step triggers).
+     * `STEP CLK` (emits a trigger on every active beat step, ideal for driving `03 // EUCLIDEAN & CLOCK` or `08 // SLOW LFO & CHAOS`).
+     * `BAR 1 TRG` (emits a reset/sync trigger on Step 1 of Bar 1 of the pattern cycle).
+
+2. **`02 // ANALOG BEAT SYNTH` (4-Voice Full-Synthesizer Percussion Engine + Envelope Follower):**
+   * **Independent Full-Synth Architecture Per Voice (`01 KICK`, `02 RIM`, `03 HAT`, `04 TOM`):**
+     * **Oscillator & FM Section:** Selectable waveforms (`SIN`, `TRI`, `SAW`, `SQR`), `OSC FREQ` ($28\text{–}900\text{ Hz}$), `P-ENV/FM` pitch/FM sweep depth, `P-DECAY` ($8\text{–}450\text{ ms}$), and `NOISE MIX` ($0\text{–}100\%$).
+     * **Multimode Resonant Filter:** Selectable filter topology (`LP`, `BP`, `HP`) with `FILT CUT` ($45\text{–}14000\text{ Hz}$), `FILT RES` ($0.5\text{–}16\text{ Q}$), bipolar `FILT ENV` ($-4500\text{ to }+6500\text{ Hz}$), plus external **`FILT CV` (`beats:filtCv`)** modulation input.
+     * **Full ADSR Amplitude Envelope & Saturation:** `SAT DRIVE` tube waveshaper + complete **`ATTACK`**, **`DECAY`**, **`SUSTAIN`**, and **`RELEASE`** envelope stages.
+   * **Patch Inputs:** `KICK IN`, `RIM IN`, `HAT IN`, `TOM IN` (triggers), `PTCH CV`, and `FILT CV`.
+   * **Patch Outputs:** Isolated voice audio outputs (`KICK`, `RIM`, `HAT`, `TOM`), summed `MIX OUT`, and **`ENV CV`** (envelope-follower CV output that pulses with every kick/rim/tom hit).
+
+### Row 2: Beat-Synced Time Generators, Harmonic Swarm, Noise Lab & ZDF Filtering
+
+3. **`03 // EUCLIDEAN & TIME DIVIDER` (Beat-Step Synced Clock & Multi-Bar Divider):**
+   * **Clock Source Mode (`INT BPM` vs `EXT BEAT STEP`):**
+     * In **`INT BPM`** mode, advances on the master $1/16\text{th}$ clock ($30\text{–}130\text{ BPM}$) and resets cleanly on `xox:barTrig` or `clock:resetIn`.
+     * In **`EXT STEP`** mode, advances **only when a trigger arrives at `clock:stepIn`**—allowing any X0X drum lane (e.g., `TRK 2 DUB RIM` or `TRK 4 WOOD TOM`) to clock the Euclidean rhythm generator directly!
+   * **Live Geometric Euclidean Ring (`<canvas>`):** Visualizes step positions, Euclidean polygon geometry, and active playhead rotation (`STEPS A`, `HITS A`, `HITS B`, `HUMANIZE`).
+   * **Patch Inputs:** `STEP IN` (external beat-step advance trigger) and `RESET IN` (phase/step 1 reset trigger).
+   * **Patch Outputs:** `EUCLID A`, `EUCLID B`, `DIV /4` (quarter-note/bar pulse), and **`2/4 BAR`** (ultra-slow multi-bar divider output for triggering long drone shifts or thunder strikes every 2 or 4 bars).
+
+4. **`04 // HARMONIC DRONE BANK` (4-VCO Analog Swarm + Dual Subs):**
+   * **Voicing Modes:** `UNISON`, `5TH+OCT`, `MIN 7`, `MIN 9`.
+   * **Controls:** `BASE FREQ` ($32\text{–}165\text{ Hz}$), `DRIFT / DET` ($0\text{–}35\text{ cents}$), `SUB -1/-2` level ($-1\text{ Oct}$ sine + $-2\text{ Oct}$ triangle), `WAVE FOLD`, `FM INDEX`, and `SWARM LVL`.
+   * **Patch Jacks:** `PITCH`, `FM CV`, `SPREAD` inputs; `SUB OUT` and `DRONE` audio outputs.
+
+5. **`05 // TEXTURA NOISE LAB` (Multi-Spectrum Noise & Vinyl Dust):**
+   * **Noise Colors:** `WHITE`, `PINK` ($-3\text{ dB/oct}$), `BROWN` ($-6\text{ dB/oct}$ deep rumble), and `TAPE HISS`.
+   * **Controls:** `FORMANT` resonant bandpass frequency, `RESONANCE`, `VINYL DUST` crackle density, `TAPE HISS`, `WIDTH`, and `NOISE LVL`.
+   * **Patch Jacks:** `FORM CV`, `VCA CV` inputs; `DUST TRG` and `NOISE` audio output.
+
+6. **`06 // ZDF ANALOG FILTER` (Multimode Ladder Filter & Tube Drive):**
+   * **Filter Modes:** `LP 24dB`, `LP 12dB`, `BANDPASS`, `NOTCH`.
+   * **Controls:** `CUTOFF` ($35\text{–}9500\text{ Hz}$ logarithmic), `RESONANCE` ($0.5\text{–}16\text{ Q}$), pre-filter `SAT DRIVE`, bipolar `FM 1 ATTEN` & `FM 2 ATTEN` ($-100\%$ to $+100\%$), and `FILT LVL`.
+   * **Patch Jacks:** `AUDIO IN`, `FM 1 CV`, `FM 2 CV` inputs; `FILT OUT` audio output.
+
+### Row 3: Vactrol Sub-Pulse, Beat-Triggered LFO/Chaos, Mangling FX & Dub Space Mixer
+
+7. **`07 // VACTROL SUB-PULSE` (Organic Low-Pass-Gate Bass Pulse):**
+   * **Controls:** `SUB PITCH`, `PUNCH DROP`, `VACTROL DEC` ($80\text{ ms}\text{ to }1.8\text{ s}$), `LPG WARMTH`, `WOOD SNAP`, `PULSE LVL`, plus manual `● PING` trigger button.
+   * **Patch Jacks:** `TRIG IN`, `PITCH CV`, `DECAY CV` inputs; `PULSE` audio output.
+
+8. **`08 // SLOW LFO & CHAOS` (Beat-Triggered Phase-Reset LFOs & Stepped S&H):**
+   * **Controls:** `LFO 1 HZ` ($0.02\text{–}4.0\text{ Hz}$ sine), `LFO 2 HZ` ($0.04\text{–}8.0\text{ Hz}$ triangle), and `CHAOS SLEW` (Lorenz-inspired random walk + Sample & Hold slew rate).
+   * **New Beat-Trigger Patch Inputs:**
+     * **`LFO RST` (`mod:lfoResetIn`):** Receiving any trigger (such as `xox:barTrig` or `xox:trig1`) hard-resets LFO 1 & LFO 2 phase to zero, locking slow sweeps to the beat.
+     * **`S&H TRG` (`mod:shTrigIn`):** When patched, advances `SLEW S&H` and steps `CHAOS` **only when triggered by the connected beat track** (instead of the default $1/8\text{th}$ internal clock).
+   * **Patch Outputs:** `LFO 1`, `LFO 2`, `CHAOS`, and `SLEW S&H`.
+
+9. **`09 // WAVEFOLD & LO-FI FX` (Beat & Drone Mangling Processor):**
+   * **Controls:** `WAVEFOLD`, `BIT CRUSH`, `TONE FILT`, `FILT RES`, bipolar `CV DEPTH`, and `FX MIX`.
+   * **Patch Jacks:** `AUDIO IN`, `TONE CV`, `FOLD CV` inputs; `FX OUT` audio output.
+
+10. **`10 // DUB TAPE DELAY` (Multi-Head Stereo Echo):**
+    * **Controls:** `TAPE TIME`, `FEEDBACK` (up to $94\%$), `TAPE DAMP`, `WOW/FLUT`, `HEAD PAN`, and `ECHO WET`.
+    * **Patch Jacks:** `AUDIO IN`, `TIME CV`, `FBACK CV` inputs; `TAPE OUT` audio output.
+
+11. **`11 // SPACE & TAPE MIXER` (4-Channel Sidechain Mixer, Cavernous Reverb & Master Saturator):**
+    * **Controls:** `CH 1 (DRONE)`, `CH 2 (BEAT)`, `CH 3 LVL`, `CH 4 (ECHO)`, `CAVERN REV`, and **`BEAT PUMP`** (sidechain ducking depth driven automatically by the Master Beat Engine on Channels 1 & 4).
+    * **Master Chain:** Silk/Harsh smoothing low-pass filter $\rightarrow$ Reel-to-reel `WaveShaper` tape saturation $\rightarrow$ Dynamics Compressor/Limiter $\rightarrow$ Master Output Gain & Top-Bar Oscilloscope.
+
+### Row 4: Environmental & Atmospheric Synthesis
+
+12. **`12 // BIOSPHERE & WEATHER SYNTHESIS LAB` (5-Engine Analog Nature & Storm Generator):**
+    * **5 Real-Time Synthesized Natural Soundscapes:** **Rain** (`RAIN LVL`, `RAIN SIZE`), **Flowing Water** (`WATER FLOW`, `BROOK BUB`), **Lapping Shoreline Waves** (`WAVES LVL`, `TIDE SPEED`), **Howling Wind** (`WIND GUST`), and **Thunder & Lightning** (`STORM PROB` + `⚡ STRIKE THUNDER`).
+    * **Quick Scene Macros:** **`🌊 CALM SHORE`** and **`⛈️ NIGHT STORM`**.
+    * **Patch Inputs & Outputs:** `THNDR TRG`, `WIND CV`, `WAVE CV` inputs; `RAIN`, `WATER`, `WAVES`, `WIND`, `LTNG TRG`, and `NATURE MIX` outputs.
+
+---
+
+## 4. Collapsible Direct Output Console & Per-Output Granular FX Rack (`🎚️ MIXER`)
+
+* **10 Direct Output Channel Strips:** `01 DRONE`, `02 SUB OSC`, `03 NOISE LAB`, `04 ZDF FILT`, `05 SUB PULSE`, `06 01 KICK`, `07 BEAT BUS`, `08 FOLD FX`, `09 TAPE DLY`, and `10 BIOSPHERE` with **Vertical Level Faders**, **Stereo Pan**, **Mute (`M`)**, and **Solo (`S`)**.
+* **Dedicated 4-Stage Granular FX Rack Per Output Channel:** `TUBE SAT`, `LO-FI BIT`, `CHOR RATE`, `CHOR DEPTH`, `HPF CUT`, `LPF TONE`, `FILT RES`, and `SPACE SEND` with per-channel `● FX ACTIVE / ○ FX BYPASSED`.
+
+---
+
+## 5. TypeScript Data Schema (`IndexedDB` & `.json` Patch Format — v4)
+
+```typescript
+export type SignalDomain = 'audio' | 'cv' | 'trig';
+export type TimbreCharacter = 'harsh' | 'soft';
+export type BeatVoiceKey = 'kick' | 'rim' | 'hat' | 'tom';
+export type PatternBankId = 'A' | 'B' | 'C' | 'D';
+
+export interface XoxPatternBank {
+  barCount: 1 | 2 | 4;           // 16, 32, or 64 steps per pattern
+  trackLengths: [number, number, number, number]; // Per-track polyrhythmic step length (4..16 per bar)
+  steps: number[][];             // 4 tracks x 64 steps (0 | 1)
+}
+
+export interface BeatVoiceSynthConfig {
+  wave: 'sine' | 'triangle' | 'sawtooth' | 'square';
+  filterType: 'lowpass' | 'bandpass' | 'highpass';
+  freq: number;       // 28..900 Hz
+  pEnvAmt: number;    // 0..1
+  pEnvDec: number;    // 0.008..0.45 s
+  noiseMix: number;   // 0..1
+  cutoff: number;     // 45..14000 Hz
+  res: number;        // 0.5..16 Q
+  filtEnv: number;    // -4500..+6500 Hz
+  drive: number;      // 0..1
+  attack: number;     // 0.001..0.22 s
+  decay: number;      // 0.02..0.95 s
+  sustain: number;    // 0..1
+  release: number;    // 0.02..1.4 s
+}
+
+export interface OutputChannelFxConfig {
+  level: number;
+  pan: number;
+  mute: boolean;
+  solo: boolean;
+  fxBypass: boolean;
+  fx: {
+    satDrive: number;
+    crushAmt: number;
+    chorusRate: number;
+    chorusMix: number;
+    hpFreq: number;
+    lpFreq: number;
+    filtRes: number;
+    revSend: number;
+  };
+}
+
+export interface PatchCable {
+  id: string;
+  from: string;        // e.g., 'xox:stepClk', 'xox:barTrig', 'beats:envOut'
+  to: string;          // e.g., 'mod:lfoResetIn', 'mod:shTrigIn', 'clock:stepIn'
+  type: SignalDomain;
+  attenuation: number; // -1.0 to +1.0 (1.0 for 'trig')
+}
+
+export interface ModMatrixSlot {
+  enabled: boolean;
+  source: 'lfo1' | 'lfo2' | 'chaos' | 'sh';
+  depth: number;       // -1.0 to +1.0
+  dest: 'filter.cutoff' | 'drone.detune' | 'drone.morph' | 'noise.formant' | 'delay.time' | 'pulse.decay';
+}
+
+export interface Aether8PatchV4 {
+  version: 'AETHER-8-v4';
+  savedAt: string;
+  bpm: number;                     // 30..130 BPM
+  masterVol: number;               // 0..1
+  timbreMode: TimbreCharacter;     // 'harsh' | 'soft'
+  chordType: 'unison' | 'fifth' | 'min7' | 'min9';
+  noiseColor: 'white' | 'pink' | 'brown' | 'hiss';
+  filterType: 'lp24' | 'lp12' | 'bandpass' | 'notch';
+  activePattern: PatternBankId;
+  patternChainEnabled: boolean;
+  xoxAutoFollow: boolean;
+  xoxPatterns: Record<PatternBankId, XoxPatternBank>;
+  xoxMuted: boolean[];             // 4 track mute flags
+  xoxNormLink: boolean[];          // 4 normalled internal trigger links
+  clockExtStepMode: boolean;       // True when driven by external beat step triggers
+  beatVoices: Record<BeatVoiceKey, BeatVoiceSynthConfig>;
+  outputMixer: Record<string, OutputChannelFxConfig>;
+  params: Record<string, Record<string, number>>;
+  cables: PatchCable[];
+  matrixSlots: ModMatrixSlot[];
+}
+```
