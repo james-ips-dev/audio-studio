@@ -214,12 +214,14 @@ export class Aether8AudioEngine {
   }
 
   public updatePatch(patch: Aether8PatchV4): void {
+    const wasPlaying = this.isPlaying;
     const prevNoiseColor = this.patchRef.noiseColor;
     this.patchRef = patch;
     if (prevNoiseColor !== patch.noiseColor && this.audioCtx) {
       this.rebuildNoiseSource();
     }
     this.syncContinuousNodes();
+    this.isPlaying = wasPlaying;
   }
 
   public queuePatternSwitch(bankId: PatternBankId): void {

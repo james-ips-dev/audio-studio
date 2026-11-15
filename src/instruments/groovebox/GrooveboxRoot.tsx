@@ -204,12 +204,11 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
       suspendAndCleanup,
       isAudioActive: () => {
         const ctx = engine.getAudioContext();
-        return Boolean(ctx && ctx.state === 'running');
+        return Boolean(ctx && ctx.state === 'running' && engine.isEnginePlaying());
       },
     });
-    return () => {
-      void suspendAndCleanup();
-    };
+    // Do NOT trigger suspendAndCleanup on unmount in dev StrictMode or re-renders
+    // Host Shell triggers suspendAndCleanup explicitly via registerHandle when changing outer tabs
   }, [registerHandle, suspendAndCleanup, engine]);
 
   // Restore isolated IndexedDB session & projects on mount

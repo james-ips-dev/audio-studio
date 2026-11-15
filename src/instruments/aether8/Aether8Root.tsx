@@ -164,6 +164,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
       },
       isAudioActive: () => engine.isEnginePlaying(),
     });
+    // Do NOT trigger suspendAndCleanup on unmount in dev StrictMode or re-renders
+    // Host Shell triggers suspendAndCleanup explicitly via registerHandle when changing outer tabs
   }, [engine, registerHandle]);
 
   // Escape key cancels active dangling cable

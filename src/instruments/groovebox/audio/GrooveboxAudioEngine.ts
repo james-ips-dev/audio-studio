@@ -155,8 +155,11 @@ export class GrooveboxAudioEngine {
   }
 
   public updateProject(project: GrooveboxProject): void {
+    const wasPlaying = this.isPlaying;
     this.projectRef = project;
     this.syncMixerAndMasterGraph();
+    // Ensure isPlaying flag is preserved and not reset on project state sync
+    this.isPlaying = wasPlaying;
   }
 
   public getAudioContext(): AudioContext | null {
