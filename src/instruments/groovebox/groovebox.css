@@ -1,0 +1,31 @@
+/* ==========================================================================
+   PRODUCT 1: GROOVEBOX v4 — SCOPED STYLES (.inst-groovebox)
+   ========================================================================== */
+
+.inst-groovebox {
+  --gb-bg-main: #0E1015;
+  --gb-bg-panel: #151821;
+  --gb-bg-elevated: #1C202C;
+  --gb-accent: #F43F5E;
+  --gb-border: rgba(255, 255, 255, 0.08);
+  background-color: var(--gb-bg-main);
+  color: #F3F4F6;
+}
+
+.inst-groovebox ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.inst-groovebox ::-webkit-scrollbar-track {
+  background: #0E1015;
+}
+
+.inst-groovebox ::-webkit-scrollbar-thumb {
+  background: #2A3042;
+  border-radius: 3px;
+}
+
+.inst-groovebox ::-webkit-scrollbar-thumb:hover {
+  background: #F43F5E;
+}
