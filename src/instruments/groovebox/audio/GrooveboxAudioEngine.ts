@@ -587,7 +587,8 @@ export class GrooveboxAudioEngine {
     const ctx = this.audioCtx;
     if (!ctx || !this.isPlaying) return;
 
-    const lookaheadSec = this.projectRef.ecoMode ? 0.16 : 0.11;
+    // Generous lookahead (240ms in Eco, 150ms normal) prevents buffer underrun crackles on Chromebooks
+    const lookaheadSec = this.projectRef.ecoMode ? 0.24 : 0.15;
     // Catch-up guard if tab was backgrounded
     if (this.nextStepTime < ctx.currentTime - 0.1) {
       this.nextStepTime = ctx.currentTime + 0.02;

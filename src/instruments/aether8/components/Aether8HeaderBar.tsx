@@ -17,6 +17,7 @@ export interface Aether8HeaderBarProps {
   onToggleWavRecord: () => void;
   onBpmChange: (bpm: number) => void;
   onMasterVolChange: (vol: number) => void;
+  onToggleEco: () => void;
   onTimbreToggle: (mode: TimbreCharacter) => void;
   onLoadFactoryPatch: (factoryId: string) => void;
   onToggleMixerDrawer: () => void;
@@ -42,6 +43,7 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
   onToggleWavRecord,
   onBpmChange,
   onMasterVolChange,
+  onToggleEco,
   onTimbreToggle,
   onLoadFactoryPatch,
   onToggleMixerDrawer,
@@ -67,8 +69,14 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
     let rafId = 0;
     const buf = new Float32Array(256);
 
+    let lastDraw = 0;
+    const targetFps = patch.ecoMode ? 15 : 60;
+    const intervalMs = 1000 / targetFps;
+
     const render = (ts: number) => {
       rafId = requestAnimationFrame(render);
+      if (ts - lastDraw < intervalMs) return;
+      lastDraw = ts;
       const w = canvas.width;
       const h = canvas.height;
       ctx.fillStyle = '#07090E';
@@ -98,7 +106,7 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [engine, isPlaying, patch.timbreMode]);
+  }, [engine, isPlaying, patch.timbreMode, patch.ecoMode]);
 
   return (
     <header className="h-13 shrink-0 border-b border-sky-500/20 bg-[#0C1018] px-2.5 flex items-center justify-between gap-2 relative z-30">
@@ -212,6 +220,19 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
           }`}
         >
           🎛️ MATRIX
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleEco}
+          title="ECO Mode (caps animation FPS and disables oversampling for low-spec Chromebooks and tablets)"
+          className={`h-8 px-2.5 rounded-lg font-studio-mono text-[11px] font-bold border transition-all cursor-pointer ${
+            patch.ecoMode
+              ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow'
+              : 'bg-white/5 hover:bg-white/10 text-gray-400 border-white/10'
+          }`}
+        >
+          {patch.ecoMode ? '⚡ ECO ON' : 'ECO'}
         </button>
 
         <button

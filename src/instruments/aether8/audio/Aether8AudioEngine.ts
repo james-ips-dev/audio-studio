@@ -260,7 +260,7 @@ export class Aether8AudioEngine {
 
     const tapeSat = audioCtx.createWaveShaper();
     tapeSat.curve = makeTubeCurve(0.35);
-    tapeSat.oversample = '2x';
+    tapeSat.oversample = this.patchRef.ecoMode ? 'none' : '2x';
 
     const limiter = audioCtx.createDynamicsCompressor();
     limiter.threshold.value = -2.0;
@@ -788,11 +788,13 @@ export class Aether8AudioEngine {
     this.nextStepTime = ctx.currentTime + 0.03;
     this.syncContinuousNodes();
 
-    // 30ms Sample-Accurate Lookahead Clock
-    this.schedulerTimer = window.setInterval(() => this.schedulerTick(), 30);
+    // 30ms Sample-Accurate Lookahead Clock (45ms in Eco)
+    const schedMs = this.patchRef.ecoMode ? 45 : 30;
+    this.schedulerTimer = window.setInterval(() => this.schedulerTick(), schedMs);
 
-    // 45ms Continuous LFO, Chaos, Vinyl Dust & Biosphere Modulation Loop
-    this.modLoopTimer = window.setInterval(() => this.modulationTick(), 45);
+    // Continuous LFO, Chaos, Vinyl Dust & Biosphere Modulation Loop (80ms in Eco, 45ms normal)
+    const modMs = this.patchRef.ecoMode ? 80 : 45;
+    this.modLoopTimer = window.setInterval(() => this.modulationTick(), modMs);
   }
 
   public stop(): void {
@@ -812,7 +814,8 @@ export class Aether8AudioEngine {
     const ctx = this.audioCtx;
     if (!ctx || !this.isPlaying) return;
 
-    const lookaheadSec = 0.12;
+    // Generous lookahead (220ms in Eco, 140ms standard) to eliminate audio dropouts / static clicking on low-spec CPUs
+    const lookaheadSec = this.patchRef.ecoMode ? 0.22 : 0.14;
     if (this.nextStepTime < ctx.currentTime - 0.1) {
       this.nextStepTime = ctx.currentTime + 0.02;
     }
@@ -1119,6 +1122,20 @@ export class Aether8AudioEngine {
     }
     vca.connect(this.directChannels.beatBus.input);
 
+    // Dynamic Virtual Eurorack Patch Routing for individual voice outs (`beats:kickOut`, etc.) & `beats:mixOut`
+    const voiceJackId = `beats:${voiceKey}Out`;
+    for (const cable of this.patchRef.cables) {
+      if (cable.type === 'audio' && (cable.from === voiceJackId || cable.from === 'beats:mixOut')) {
+        const destNode = this.resolveAudioInputNode(cable.to);
+        if (destNode) {
+          const cableAtten = ctx.createGain();
+          cableAtten.gain.value = cable.attenuation ?? 1.0;
+          vca.connect(cableAtten);
+          cableAtten.connect(destNode);
+        }
+      }
+    }
+
     osc.start(t);
     osc.stop(t + totalDur + 0.02);
     osc.onended = () => {
@@ -1143,6 +1160,29 @@ export class Aether8AudioEngine {
           t + 0.28
         );
       }
+    }
+  }
+
+  private resolveAudioInputNode(jackId: string): AudioNode | null {
+    if (!this.directChannels) return null;
+    switch (jackId) {
+      case 'filter:audioIn':
+      case 'filter:fm1Cv':
+        return this.zdfFilter1;
+      case 'fx:audioIn':
+        return this.foldFxShaper;
+      case 'delay:audioIn':
+        return this.tapeDelayNode;
+      case 'mixer:ch1In':
+        return this.directChannels.drone.input;
+      case 'mixer:ch2In':
+        return this.directChannels.beatBus.input;
+      case 'mixer:ch3In':
+        return this.directChannels.zdfFilt.input;
+      case 'mixer:ch4In':
+        return this.directChannels.tapeDly.input;
+      default:
+        return null;
     }
   }
 

@@ -240,8 +240,11 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
     void storage.saveAutosave(project);
   }, [project, storage]);
 
-  // Connect Web MIDI API input manager
-  useEffect(() => {
+  // Web MIDI API input manager (on-demand connect only to prevent clickjacking/permission prompt blocks on managed tablets)
+  const midiManagerRef = useRef<GrooveboxMidiManager | null>(null);
+
+  const handleConnectMidi = useCallback(async () => {
+    if (midiManagerRef.current) return;
     const midiMgr = new GrooveboxMidiManager({
       onNoteOn: (midiNote, velocity) => {
         const trkIdx = focusedTrackRef.current;
@@ -270,9 +273,19 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
       onStatusChange: (names) => setMidiInputs(names),
     });
 
-    void midiMgr.connect();
-    return () => midiMgr.dispose();
+    midiManagerRef.current = midiMgr;
+    const inputs = await midiMgr.connect();
+    setMidiInputs(inputs);
   }, [engine]);
+
+  useEffect(() => {
+    return () => {
+      if (midiManagerRef.current) {
+        midiManagerRef.current.dispose();
+        midiManagerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleTogglePlay = useCallback(async () => {
     if (isPlaying) {
@@ -504,6 +517,7 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
         canRedo={redoStack.length > 0}
         midiInputs={midiInputs}
         savedProjects={savedProjects}
+        onConnectMidi={handleConnectMidi}
         onTogglePlay={handleTogglePlay}
         onToggleRecord={() => setIsRecording((v) => !v)}
         onToggleWavRecord={handleToggleWavRecord}

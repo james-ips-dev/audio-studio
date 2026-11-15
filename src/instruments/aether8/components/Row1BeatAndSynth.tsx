@@ -538,6 +538,10 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
             { id: 'beats:hatIn', label: 'HAT IN', dir: 'in' as const, dom: 'trig' as const },
             { id: 'beats:tomIn', label: 'TOM IN', dir: 'in' as const, dom: 'trig' as const },
             { id: 'beats:filtCv', label: 'FILT CV', dir: 'in' as const, dom: 'cv' as const },
+            { id: 'beats:kickOut', label: 'KICK', dir: 'out' as const, dom: 'audio' as const },
+            { id: 'beats:rimOut', label: 'RIM', dir: 'out' as const, dom: 'audio' as const },
+            { id: 'beats:hatOut', label: 'HAT', dir: 'out' as const, dom: 'audio' as const },
+            { id: 'beats:tomOut', label: 'TOM', dir: 'out' as const, dom: 'audio' as const },
             { id: 'beats:mixOut', label: 'MIX OUT', dir: 'out' as const, dom: 'audio' as const },
             { id: 'beats:envOut', label: 'ENV CV', dir: 'out' as const, dom: 'cv' as const },
           ].map((j) => (

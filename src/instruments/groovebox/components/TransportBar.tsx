@@ -20,6 +20,7 @@ export interface TransportBarProps {
   canRedo: boolean;
   midiInputs: string[];
   savedProjects: StoredPatchRecord<GrooveboxProject>[];
+  onConnectMidi: () => void;
   onTogglePlay: () => void;
   onToggleRecord: () => void;
   onToggleWavRecord: () => void;
@@ -61,6 +62,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   canRedo,
   midiInputs,
   savedProjects,
+  onConnectMidi,
   onTogglePlay,
   onToggleRecord,
   onToggleWavRecord,
@@ -489,13 +491,23 @@ export const TransportBar: React.FC<TransportBarProps> = ({
                       : 'Web Audio 48kHz'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setProjectMenuOpen(false)}
-                  className="text-xs text-gray-400 hover:text-white px-1.5 cursor-pointer"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onConnectMidi}
+                    className="px-2 py-0.5 rounded bg-indigo-500/25 border border-indigo-500/40 text-[10px] font-studio-mono text-indigo-200 hover:bg-indigo-500/40 cursor-pointer"
+                    title="Request Web MIDI API access on demand"
+                  >
+                    {midiInputs.length > 0 ? '✓ MIDI ON' : 'CONNECT MIDI'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProjectMenuOpen(false)}
+                    className="text-xs text-gray-400 hover:text-white px-1.5 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* 6 Ready-to-Remix Starter Projects */}

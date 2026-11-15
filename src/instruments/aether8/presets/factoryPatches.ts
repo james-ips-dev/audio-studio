@@ -397,6 +397,7 @@ function buildFactoryPatch(
     noiseColor: 'pink',
     filterType: 'lp24',
     activePattern: 'A',
+    ecoMode: false,
     patternChainEnabled: false,
     xoxAutoFollow: true,
     xoxPatterns,

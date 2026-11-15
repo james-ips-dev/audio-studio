@@ -340,6 +340,9 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
         onMasterVolChange={(masterVol) =>
           setPatch((p) => ({ ...p, masterVol }))
         }
+        onToggleEco={() =>
+          setPatch((p) => ({ ...p, ecoMode: !p.ecoMode }))
+        }
         onTimbreToggle={(timbreMode: TimbreCharacter) =>
           setPatch((p) => ({ ...p, timbreMode }))
         }

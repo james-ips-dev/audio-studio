@@ -110,6 +110,7 @@ export interface Aether8PatchV4 {
   noiseColor: NoiseSpectrumColor;
   filterType: ZdfFilterMode;
   activePattern: PatternBankId;
+  ecoMode?: boolean;
   patternChainEnabled: boolean;
   xoxAutoFollow: boolean;
   xoxPatterns: Record<PatternBankId, XoxPatternBank>;

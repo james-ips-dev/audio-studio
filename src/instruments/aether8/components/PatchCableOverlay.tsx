@@ -30,6 +30,7 @@ export const PatchCableOverlay: React.FC<PatchCableOverlayProps> = ({
     if (!ctx) return;
 
     let rafId = 0;
+    let lastDraw = 0;
 
     const getJackCenter = (jackId: string): { x: number; y: number } | null => {
       const el = chassis.querySelector<HTMLElement>(
@@ -81,8 +82,10 @@ export const PatchCableOverlay: React.FC<PatchCableOverlayProps> = ({
       ctx.restore();
     };
 
-    const render = () => {
+    const render = (ts: number) => {
       rafId = requestAnimationFrame(render);
+      if (ts - lastDraw < 33) return; // Cap cable animation to ~30fps max to save CPU
+      lastDraw = ts;
       const rect = chassis.getBoundingClientRect();
       if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
         canvas.width = Math.floor(rect.width);
