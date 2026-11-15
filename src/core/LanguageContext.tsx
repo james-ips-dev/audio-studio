@@ -392,6 +392,54 @@ const TRANSLATIONS: Record<string, Record<Language, string>> = {
     en: '🔊 AUDITION VOICE',
     ja: '🔊 ボイス試聴',
   },
+  'riley.synthTab': {
+    en: '🎛️ SYNTH ENGINE',
+    ja: '🎛️ 音源エンジン',
+  },
+  'riley.fxTab': {
+    en: '⚡ VOICE FX RACK',
+    ja: '⚡ エフェクトラック (FX)',
+  },
+  'riley.fxEcho': {
+    en: 'ECHO',
+    ja: 'エコー',
+  },
+  'riley.fxDelay': {
+    en: 'DELAY',
+    ja: 'ディレイ',
+  },
+  'riley.fxFlanger': {
+    en: 'FLANGER',
+    ja: 'フランジャー',
+  },
+  'riley.fxPhaser': {
+    en: 'PHASER',
+    ja: 'フェイザー',
+  },
+  'riley.fxCompressor': {
+    en: 'COMPRESSOR',
+    ja: 'コンプレッサー',
+  },
+  'riley.rainPreamp': {
+    en: 'RAIN PREAMP',
+    ja: '雨プリアンプ',
+  },
+  'riley.streamPreamp': {
+    en: 'STREAM PREAMP',
+    ja: 'せせらぎプリアンプ',
+  },
+  'riley.wavesPreamp': {
+    en: 'WAVES PREAMP',
+    ja: '波プリアンプ',
+  },
+  'riley.windPreamp': {
+    en: 'WIND PREAMP',
+    ja: '風プリアンプ',
+  },
+  'riley.thunderPreamp': {
+    en: 'THUNDER PREAMP',
+    ja: '遠雷プリアンプ',
+  },
 };
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({

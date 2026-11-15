@@ -54,6 +54,66 @@ export interface FullSynthParams {
   lfoDest: LfoDest;
 }
 
+export type VoiceFxSyncRate = 'free' | '1/16' | '1/8' | '1/4' | '1/2' | '1-bar' | '2-bar' | '4-bar';
+
+export interface VoiceFxEcho {
+  enabled: boolean;
+  sync: boolean;
+  syncRate: VoiceFxSyncRate;
+  timeMs: number; // 20ms .. 1000ms
+  feedback: number; // 0 .. 0.85
+  toneHz: number; // 300Hz .. 8000Hz
+  mix: number; // 0 .. 1.0
+}
+
+export interface VoiceFxDelay {
+  enabled: boolean;
+  sync: boolean;
+  syncRate: VoiceFxSyncRate;
+  timeMs: number; // 50ms .. 1600ms
+  feedback: number; // 0 .. 0.88
+  crossfeed: number; // 0 .. 0.5
+  mix: number; // 0 .. 1.0
+}
+
+export interface VoiceFxFlanger {
+  enabled: boolean;
+  sync: boolean;
+  syncRate: VoiceFxSyncRate;
+  rateHz: number; // 0.05Hz .. 8Hz
+  depthMs: number; // 0.5ms .. 8ms
+  feedback: number; // -0.85 .. +0.85
+  mix: number; // 0 .. 1.0
+}
+
+export interface VoiceFxPhaser {
+  enabled: boolean;
+  sync: boolean;
+  syncRate: VoiceFxSyncRate;
+  rateHz: number; // 0.05Hz .. 8Hz
+  depth: number; // 0 .. 1.0
+  feedback: number; // 0 .. 0.85
+  stages: 4 | 8;
+  mix: number; // 0 .. 1.0
+}
+
+export interface VoiceFxCompressor {
+  enabled: boolean;
+  thresholdDb: number; // -48dB .. 0dB
+  ratio: number; // 1 .. 20
+  attackSec: number; // 0.001s .. 0.1s
+  releaseSec: number; // 0.02s .. 0.8s
+  gainDb: number; // 0dB .. +18dB
+}
+
+export interface VoiceFxRack {
+  echo: VoiceFxEcho;
+  delay: VoiceFxDelay;
+  flanger: VoiceFxFlanger;
+  phaser: VoiceFxPhaser;
+  compressor: VoiceFxCompressor;
+}
+
 export interface VoiceTrack {
   id: string;
   index: number; // 0..7
@@ -65,6 +125,7 @@ export interface VoiceTrack {
   steps: StepCell[]; // Fixed length 16 array; indices >= length are dimmed/inactive
   riley: RileyVoiceParams;
   synth: FullSynthParams;
+  fx: VoiceFxRack;
   volume: number;   // 0.0 .. 1.0
   pan: number;      // -1.0 .. +1.0
   tapeSend: number; // 0.0 .. 0.7
@@ -81,24 +142,45 @@ export interface TapeDelayState {
   mix: number;       // 0.0 .. 0.70
 }
 
+export type BiosphereModRate = 'free' | '1/16' | '1/8' | '1/4' | '1/2' | '1-bar' | '2-bar' | '4-bar' | '8-bar';
+
 export interface BiosphereState {
   enabled: boolean;
   clockSync: boolean;
-  masterVol: number;       // 0.0 .. 1.0
-  rain: number;            // 0.0 .. 1.0
-  rainHeavy: boolean;      // false = 3400Hz soft, true = 2100Hz heavy
-  rainDropletSync: boolean;// Polyrhythmic droplets on tick % 3 === 0 || tick % 5 === 0
-  stream: number;          // 0.0 .. 1.0
-  waves: number;           // 0.0 .. 1.0
-  waveSyncBars: 0 | 4 | 8; // 0 = continuous, 4 or 8 = bar-locked swell envelope
-  wind: number;            // 0.0 .. 1.0
-  thunderProb: number;     // 0.0 .. 1.0
+  masterVol: number; // 0.0 .. 2.0 (scaled & boosted)
+
+  // Individual generators with calibrated preamps & LFO modulations
+  rain: number; // 0.0 .. 1.0
+  rainPreamp: number; // 0.2 .. 3.0 (default 1.0)
+  rainHeavy: boolean; // false = soft, true = heavy
+  rainDropletSync: boolean; // Polyrhythmic droplets on tick % 3 === 0 || tick % 5 === 0
+  rainModDepth: number; // 0.0 .. 1.0
+  rainModRate: BiosphereModRate;
+
+  stream: number; // 0.0 .. 1.0
+  streamPreamp: number; // 0.2 .. 3.0 (default 1.0)
+  streamModDepth: number; // 0.0 .. 1.0
+  streamModRate: BiosphereModRate;
+
+  waves: number; // 0.0 .. 1.0
+  wavesPreamp: number; // 0.2 .. 3.0 (default 1.0)
+  waveSyncBars: 0 | 4 | 8; // 0 = continuous/free, 4 or 8 = bar-locked swell envelope
+  wavesModDepth: number; // 0.0 .. 1.0
+  wavesModRate: BiosphereModRate;
+
+  wind: number; // 0.0 .. 1.0
+  windPreamp: number; // 0.2 .. 3.0 (default 1.0)
+  windModDepth: number; // 0.0 .. 1.0
+  windModRate: BiosphereModRate;
+
+  thunderProb: number; // 0.0 .. 1.0 (bar-level evaluation)
+  thunderPreamp: number; // 0.2 .. 3.0 (default 1.0)
 }
 
 export interface PatchCable {
   id: string;
-  from: string; // e.g., 'clk-div-1', 'v1-cv'
-  to: string;   // e.g., 'v1-clk', 'tla-in-l'
+  from: string; // e.g., 'clk-div-1', 'v1-cv', 'v1-seq-trig'
+  to: string;   // e.g., 'v1-clk', 'tla-in-l', 'bio-thunder-trig'
   color: string;
 }
 

@@ -36,6 +36,7 @@ import {
   saveUserPatch,
 } from '../storage/rileyPatchDB';
 import type {
+  BiosphereModRate,
   EngineMode,
   FilterMode,
   FullSynthParams,
@@ -46,6 +47,7 @@ import type {
   RileyModel,
   RileySongPatch,
   ScaleId,
+  VoiceFxSyncRate,
   VoiceTrack,
 } from '../types';
 import { RackErrorBoundary } from './RackErrorBoundary';
@@ -125,6 +127,8 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
   // Save As Dialog State
   const [saveAsModalOpen, setSaveAsModalOpen] = useState<boolean>(false);
   const [saveAsNameInput, setSaveAsNameInput] = useState<string>('');
+  const [activeVoiceTab, setActiveVoiceTab] = useState<'synth' | 'fx'>('synth');
+  const [activeVoiceFxTab, setActiveVoiceFxTab] = useState<'echo' | 'delay' | 'flanger' | 'phaser' | 'compressor'>('echo');
   const [toastMessage, setToastMessage] = useState<{
     title: string;
     message: string;
@@ -1517,8 +1521,10 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
             const currentStep = activeSteps[vIdx] ?? 0;
             const clkJackId = `v${vIdx + 1}-clk`;
             const cvJackId = `v${vIdx + 1}-cv`;
+            const seqTrigJackId = `v${vIdx + 1}-seq-trig`;
             const clkCable = patch.cables.find((c) => c.to === clkJackId);
             const cvPatched = patch.cables.some((c) => c.from === cvJackId);
+            const trigPatched = patch.cables.some((c) => c.from === seqTrigJackId);
 
             return (
               <div
@@ -1652,6 +1658,28 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                       <span>CV</span>
+                    </button>
+
+                    {/* TRIG OUT Jack (Sequencer Trigger -> Thunder / External) */}
+                    <button
+                      type="button"
+                      data-riley-jack={seqTrigJackId}
+                      onClick={(e) => handleJackClick(seqTrigJackId, 'out', e)}
+                      title={
+                        isJa
+                          ? `V${vIdx + 1} TRIG OUT 端子（THUNDER TRIG INへ結線して発火連動）`
+                          : `V${vIdx + 1} TRIG OUT Jack (Patch to THUNDER TRIG IN)`
+                      }
+                      className={`h-5 px-1.5 rounded-full border flex items-center gap-0.5 cursor-pointer ${
+                        activeSourceJack === seqTrigJackId
+                          ? 'bg-amber-400 text-black border-white'
+                          : trigPatched
+                            ? 'bg-yellow-500/25 border-yellow-400 text-yellow-200'
+                            : 'bg-black/60 border-white/20 text-gray-400 hover:border-yellow-400'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                      <span>TRIG</span>
                     </button>
                   </div>
                 </div>
@@ -1933,106 +1961,155 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
           {/* Engine Mode Switch + 10 Curated Voice Presets Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 bg-black/40 p-2 rounded-lg border border-white/5">
             <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/10">
-              {(['ORIGINAL_RILEY', 'FULL_SYNTH_SUITE'] as EngineMode[]).map(
-                (m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() =>
-                      updateVoice(selectedVoiceIdx, (cur) => ({
-                        ...cur,
-                        mode: m,
-                      }))
-                    }
-                    className={`px-2.5 py-1 rounded font-studio-mono text-[10px] font-bold cursor-pointer transition-colors ${
-                      selectedVoice.mode === m
-                        ? m === 'ORIGINAL_RILEY'
-                          ? 'bg-amber-400 text-black'
-                          : 'bg-sky-400 text-black'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    {m === 'ORIGINAL_RILEY'
-                      ? isJa
-                        ? '🎹 ORIGINAL RILEY (オルガン/LPG/パッド)'
-                        : '🎹 ORIGINAL RILEY'
-                      : isJa
-                        ? '🎛️ FULL SYNTH SUITE (プロシンセ)'
-                        : '🎛️ FULL SYNTH SUITE'}
-                  </button>
-                )
-              )}
+              <button
+                type="button"
+                onClick={() => setActiveVoiceTab('synth')}
+                className={`px-2.5 py-1 rounded font-studio-mono text-[10px] font-bold cursor-pointer transition-colors ${
+                  activeVoiceTab === 'synth'
+                    ? 'bg-amber-400 text-black'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {isJa ? '🎛️ 音源エンジン' : '🎛️ SYNTH ENGINE'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveVoiceTab('fx')}
+                className={`px-2.5 py-1 rounded font-studio-mono text-[10px] font-bold cursor-pointer transition-colors ${
+                  activeVoiceTab === 'fx'
+                    ? 'bg-indigo-400 text-black'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {isJa ? '⚡ エフェクトラック (FX)' : '⚡ VOICE FX RACK'}
+              </button>
             </div>
 
-            {/* 10 Voice Presets Dropdown for Active Mode */}
-            <div className="flex items-center gap-1.5 flex-1 min-w-[220px]">
-              <span className="font-studio-mono text-[9px] text-gray-400 uppercase shrink-0">
-                {isJa ? '10音色プリセット:' : '10 VOICE PRESETS:'}
-              </span>
-              {selectedVoice.mode === 'ORIGINAL_RILEY' ? (
-                <select
-                  aria-label="Original Riley Voice Preset"
-                  onChange={(e) => {
-                    const found = ORIGINAL_RILEY_VOICE_PRESETS.find(
-                      (p) => p.id === e.target.value
-                    );
-                    if (found) {
-                      updateVoice(selectedVoiceIdx, (cur) => ({
-                        ...cur,
-                        riley: { ...found.params },
-                      }));
-                    }
-                  }}
-                  defaultValue=""
-                  className="h-7 px-2 rounded bg-black/60 border border-amber-500/40 font-studio-mono text-[10px] font-bold text-amber-200 flex-1 cursor-pointer"
-                >
-                  <option value="" disabled>
-                    {isJa
-                      ? '▼ Original Riley 10音色から選択...'
-                      : '▼ Select 10 Original Riley Voice Presets...'}
-                  </option>
-                  {ORIGINAL_RILEY_VOICE_PRESETS.map((vp, idx) => (
-                    <option key={vp.id} value={vp.id} className="bg-[#10141E]">
-                      {idx + 1}. {isJa ? vp.nameJa : vp.name} ({vp.params.model.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  aria-label="Full Synth Suite Voice Preset"
-                  onChange={(e) => {
-                    const found = FULL_SYNTH_VOICE_PRESETS.find(
-                      (p) => p.id === e.target.value
-                    );
-                    if (found) {
-                      updateVoice(selectedVoiceIdx, (cur) => ({
-                        ...cur,
-                        synth: JSON.parse(
-                          JSON.stringify(found.params)
-                        ) as FullSynthParams,
-                      }));
-                    }
-                  }}
-                  defaultValue=""
-                  className="h-7 px-2 rounded bg-black/60 border border-sky-500/40 font-studio-mono text-[10px] font-bold text-sky-200 flex-1 cursor-pointer"
-                >
-                  <option value="" disabled>
-                    {isJa
-                      ? '▼ Full Synth Suite 10音色から選択...'
-                      : '▼ Select 10 Full Synth Suite Voice Presets...'}
-                  </option>
-                  {FULL_SYNTH_VOICE_PRESETS.map((vp, idx) => (
-                    <option key={vp.id} value={vp.id} className="bg-[#10141E]">
-                      {idx + 1}. {isJa ? vp.nameJa : vp.name} ({vp.params.filterMode})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
+            {activeVoiceTab === 'synth' ? (
+              <div className="flex items-center gap-2 flex-1 justify-end flex-wrap">
+                <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/10">
+                  {(['ORIGINAL_RILEY', 'FULL_SYNTH_SUITE'] as EngineMode[]).map(
+                    (m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() =>
+                          updateVoice(selectedVoiceIdx, (cur) => ({
+                            ...cur,
+                            mode: m,
+                          }))
+                        }
+                        className={`px-2 py-0.5 rounded font-studio-mono text-[9px] font-bold cursor-pointer transition-colors ${
+                          selectedVoice.mode === m
+                            ? m === 'ORIGINAL_RILEY'
+                              ? 'bg-amber-400 text-black'
+                              : 'bg-sky-400 text-black'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {m === 'ORIGINAL_RILEY'
+                          ? isJa ? 'ORIGINAL' : 'ORIGINAL'
+                          : isJa ? 'PRO SYNTH' : 'PRO SYNTH'}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {/* 10 Voice Presets Dropdown */}
+                <div className="flex items-center gap-1 min-w-[200px]">
+                  {selectedVoice.mode === 'ORIGINAL_RILEY' ? (
+                    <select
+                      aria-label="Original Riley Voice Preset"
+                      onChange={(e) => {
+                        const found = ORIGINAL_RILEY_VOICE_PRESETS.find(
+                          (p) => p.id === e.target.value
+                        );
+                        if (found) {
+                          updateVoice(selectedVoiceIdx, (cur) => ({
+                            ...cur,
+                            riley: { ...found.params },
+                          }));
+                        }
+                      }}
+                      defaultValue=""
+                      className="h-6 px-1.5 rounded bg-black/60 border border-amber-500/40 font-studio-mono text-[9px] font-bold text-amber-200 flex-1 cursor-pointer"
+                    >
+                      <option value="" disabled>
+                        {isJa
+                          ? '▼ 10音色プリセット...'
+                          : '▼ 10 Voice Presets...'}
+                      </option>
+                      {ORIGINAL_RILEY_VOICE_PRESETS.map((vp, idx) => (
+                        <option key={vp.id} value={vp.id} className="bg-[#10141E]">
+                          {idx + 1}. {isJa ? vp.nameJa : vp.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      aria-label="Full Synth Suite Voice Preset"
+                      onChange={(e) => {
+                        const found = FULL_SYNTH_VOICE_PRESETS.find(
+                          (p) => p.id === e.target.value
+                        );
+                        if (found) {
+                          updateVoice(selectedVoiceIdx, (cur) => ({
+                            ...cur,
+                            synth: JSON.parse(
+                              JSON.stringify(found.params)
+                            ) as FullSynthParams,
+                          }));
+                        }
+                      }}
+                      defaultValue=""
+                      className="h-6 px-1.5 rounded bg-black/60 border border-sky-500/40 font-studio-mono text-[9px] font-bold text-sky-200 flex-1 cursor-pointer"
+                    >
+                      <option value="" disabled>
+                        {isJa
+                          ? '▼ 10音色プリセット...'
+                          : '▼ 10 Voice Presets...'}
+                      </option>
+                      {FULL_SYNTH_VOICE_PRESETS.map((vp, idx) => (
+                        <option key={vp.id} value={vp.id} className="bg-[#10141E]">
+                          {idx + 1}. {isJa ? vp.nameJa : vp.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* FX Unit Selector Buttons */
+              <div className="flex items-center gap-1 font-studio-mono text-[9px]">
+                {(['echo', 'delay', 'flanger', 'phaser', 'compressor'] as const).map((fxKey) => {
+                  const isEnabled = selectedVoice.fx?.[fxKey]?.enabled;
+                  const isActive = activeVoiceFxTab === fxKey;
+                  return (
+                    <button
+                      key={fxKey}
+                      type="button"
+                      onClick={() => setActiveVoiceFxTab(fxKey)}
+                      className={`px-2 py-1 rounded uppercase font-bold border cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-500 text-white border-indigo-400'
+                          : isEnabled
+                            ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+                            : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {fxKey.toUpperCase()}
+                      {isEnabled ? ' ●' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Active Engine Parameter Controls */}
-          {selectedVoice.mode === 'ORIGINAL_RILEY' ? (
+          {/* Active Voice Editor: SYNTH ENGINE or FX RACK */}
+          {activeVoiceTab === 'synth' ? (
+            /* Active Engine Parameter Controls (ORIGINAL_RILEY or FULL_SYNTH_SUITE) */
+            selectedVoice.mode === 'ORIGINAL_RILEY' ? (
             <div className="space-y-3 bg-black/35 p-3 rounded-lg border border-white/5">
               {/* Model Selector: ORGAN / PLUCK / PAD */}
               <div className="flex items-center justify-between">
@@ -2675,6 +2752,486 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                 </div>
               </div>
             </div>
+            )
+          ) : (
+            /* FX RACK EDITOR FOR SELECTED VOICE */
+            <div className="space-y-3 bg-black/35 p-3 rounded-lg border border-indigo-500/20">
+              {/* FX Unit Header: Enable Toggle, Sync Toggle, Sync Rate */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-studio-mono text-xs font-bold text-indigo-300 uppercase">
+                    {activeVoiceFxTab}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateVoice(selectedVoiceIdx, (cur) => {
+                        const unit = cur.fx[activeVoiceFxTab];
+                        return {
+                          ...cur,
+                          fx: {
+                            ...cur.fx,
+                            [activeVoiceFxTab]: {
+                              ...unit,
+                              enabled: !unit.enabled,
+                            },
+                          },
+                        };
+                      });
+                    }}
+                    className={`px-2 py-0.5 rounded font-studio-mono text-[9px] font-bold border cursor-pointer ${
+                      selectedVoice.fx[activeVoiceFxTab].enabled
+                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                        : 'bg-white/5 border-white/10 text-gray-400'
+                    }`}
+                  >
+                    {selectedVoice.fx[activeVoiceFxTab].enabled ? 'ACTIVE' : 'BYPASS'}
+                  </button>
+                </div>
+
+                {activeVoiceFxTab !== 'compressor' && (
+                  <div className="flex items-center gap-1.5 font-studio-mono text-[9px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateVoice(selectedVoiceIdx, (cur) => {
+                          const unit = cur.fx[activeVoiceFxTab as 'echo' | 'delay' | 'flanger' | 'phaser'];
+                          return {
+                            ...cur,
+                            fx: {
+                              ...cur.fx,
+                              [activeVoiceFxTab]: {
+                                ...unit,
+                                sync: !unit.sync,
+                              },
+                            },
+                          };
+                        });
+                      }}
+                      className={`px-2 py-0.5 rounded border font-bold cursor-pointer ${
+                        (selectedVoice.fx[activeVoiceFxTab as 'echo' | 'delay' | 'flanger' | 'phaser']).sync
+                          ? 'bg-sky-500/20 border-sky-400 text-sky-200'
+                          : 'bg-white/5 border-white/10 text-gray-400'
+                      }`}
+                    >
+                      {(selectedVoice.fx[activeVoiceFxTab as 'echo' | 'delay' | 'flanger' | 'phaser']).sync
+                        ? '⏱ SYNC'
+                        : '∞ FREE'}
+                    </button>
+
+                    <select
+                      aria-label="FX Sync Rate"
+                      value={(selectedVoice.fx[activeVoiceFxTab as 'echo' | 'delay' | 'flanger' | 'phaser']).syncRate}
+                      onChange={(e) => {
+                        const val = e.target.value as VoiceFxSyncRate;
+                        updateVoice(selectedVoiceIdx, (cur) => {
+                          const unit = cur.fx[activeVoiceFxTab as 'echo' | 'delay' | 'flanger' | 'phaser'];
+                          return {
+                            ...cur,
+                            fx: {
+                              ...cur.fx,
+                              [activeVoiceFxTab]: {
+                                ...unit,
+                                syncRate: val,
+                              },
+                            },
+                          };
+                        });
+                      }}
+                      className="h-6 px-1.5 rounded bg-black/70 border border-white/10 text-[9px] text-gray-300 cursor-pointer"
+                    >
+                      {(['free', '1/16', '1/8', '1/4', '1/2', '1-bar', '2-bar', '4-bar'] as VoiceFxSyncRate[]).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* FX Knobs per active unit */}
+              {activeVoiceFxTab === 'echo' && (
+                <div className="grid grid-cols-4 gap-2 items-center justify-items-center py-2">
+                  <RotaryKnob
+                    size="sm"
+                    label="TIME"
+                    value={selectedVoice.fx.echo.timeMs}
+                    min={20}
+                    max={1000}
+                    step={10}
+                    defaultValue={240}
+                    accentColor="#818CF8"
+                    formatValue={(v) => `${Math.round(v)}ms`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, echo: { ...cur.fx.echo, timeMs: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="FEEDBACK"
+                    value={selectedVoice.fx.echo.feedback}
+                    min={0}
+                    max={0.85}
+                    step={0.01}
+                    defaultValue={0.35}
+                    accentColor="#818CF8"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, echo: { ...cur.fx.echo, feedback: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="TONE"
+                    value={selectedVoice.fx.echo.toneHz}
+                    min={300}
+                    max={8000}
+                    step={50}
+                    defaultValue={2800}
+                    accentColor="#818CF8"
+                    formatValue={(v) => `${Math.round(v)}Hz`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, echo: { ...cur.fx.echo, toneHz: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="MIX"
+                    value={selectedVoice.fx.echo.mix}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.35}
+                    accentColor="#818CF8"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, echo: { ...cur.fx.echo, mix: val } },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+              {activeVoiceFxTab === 'delay' && (
+                <div className="grid grid-cols-4 gap-2 items-center justify-items-center py-2">
+                  <RotaryKnob
+                    size="sm"
+                    label="TIME"
+                    value={selectedVoice.fx.delay.timeMs}
+                    min={50}
+                    max={1600}
+                    step={10}
+                    defaultValue={380}
+                    accentColor="#6366F1"
+                    formatValue={(v) => `${Math.round(v)}ms`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, delay: { ...cur.fx.delay, timeMs: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="FEEDBACK"
+                    value={selectedVoice.fx.delay.feedback}
+                    min={0}
+                    max={0.88}
+                    step={0.01}
+                    defaultValue={0.45}
+                    accentColor="#6366F1"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, delay: { ...cur.fx.delay, feedback: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="CROSSFEED"
+                    value={selectedVoice.fx.delay.crossfeed}
+                    min={0}
+                    max={0.5}
+                    step={0.01}
+                    defaultValue={0.15}
+                    accentColor="#6366F1"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, delay: { ...cur.fx.delay, crossfeed: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="MIX"
+                    value={selectedVoice.fx.delay.mix}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.4}
+                    accentColor="#6366F1"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, delay: { ...cur.fx.delay, mix: val } },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+              {activeVoiceFxTab === 'flanger' && (
+                <div className="grid grid-cols-4 gap-2 items-center justify-items-center py-2">
+                  <RotaryKnob
+                    size="sm"
+                    label="RATE"
+                    value={selectedVoice.fx.flanger.rateHz}
+                    min={0.05}
+                    max={8}
+                    step={0.05}
+                    defaultValue={0.4}
+                    accentColor="#EC4899"
+                    formatValue={(v) => `${v.toFixed(2)}Hz`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, flanger: { ...cur.fx.flanger, rateHz: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="DEPTH"
+                    value={selectedVoice.fx.flanger.depthMs}
+                    min={0.5}
+                    max={8}
+                    step={0.1}
+                    defaultValue={3.5}
+                    accentColor="#EC4899"
+                    formatValue={(v) => `${v.toFixed(1)}ms`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, flanger: { ...cur.fx.flanger, depthMs: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="FEEDBACK"
+                    bipolar
+                    value={selectedVoice.fx.flanger.feedback}
+                    min={-0.85}
+                    max={0.85}
+                    step={0.02}
+                    defaultValue={0.45}
+                    accentColor="#EC4899"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, flanger: { ...cur.fx.flanger, feedback: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="MIX"
+                    value={selectedVoice.fx.flanger.mix}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.4}
+                    accentColor="#EC4899"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, flanger: { ...cur.fx.flanger, mix: val } },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+              {activeVoiceFxTab === 'phaser' && (
+                <div className="grid grid-cols-4 gap-2 items-center justify-items-center py-2">
+                  <RotaryKnob
+                    size="sm"
+                    label="RATE"
+                    value={selectedVoice.fx.phaser.rateHz}
+                    min={0.05}
+                    max={8}
+                    step={0.05}
+                    defaultValue={0.25}
+                    accentColor="#8B5CF6"
+                    formatValue={(v) => `${v.toFixed(2)}Hz`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, phaser: { ...cur.fx.phaser, rateHz: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="DEPTH"
+                    value={selectedVoice.fx.phaser.depth}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.65}
+                    accentColor="#8B5CF6"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, phaser: { ...cur.fx.phaser, depth: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="FEEDBACK"
+                    value={selectedVoice.fx.phaser.feedback}
+                    min={0}
+                    max={0.85}
+                    step={0.01}
+                    defaultValue={0.5}
+                    accentColor="#8B5CF6"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, phaser: { ...cur.fx.phaser, feedback: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="MIX"
+                    value={selectedVoice.fx.phaser.mix}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.45}
+                    accentColor="#8B5CF6"
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, phaser: { ...cur.fx.phaser, mix: val } },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+              {activeVoiceFxTab === 'compressor' && (
+                <div className="grid grid-cols-5 gap-2 items-center justify-items-center py-2">
+                  <RotaryKnob
+                    size="sm"
+                    label="THRESH"
+                    value={selectedVoice.fx.compressor.thresholdDb}
+                    min={-48}
+                    max={0}
+                    step={1}
+                    defaultValue={-18}
+                    accentColor="#F59E0B"
+                    formatValue={(v) => `${Math.round(v)}dB`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, compressor: { ...cur.fx.compressor, thresholdDb: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="RATIO"
+                    value={selectedVoice.fx.compressor.ratio}
+                    min={1}
+                    max={20}
+                    step={0.5}
+                    defaultValue={4}
+                    accentColor="#F59E0B"
+                    formatValue={(v) => `${v.toFixed(1)}:1`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, compressor: { ...cur.fx.compressor, ratio: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="ATTACK"
+                    value={selectedVoice.fx.compressor.attackSec}
+                    min={0.001}
+                    max={0.1}
+                    step={0.002}
+                    defaultValue={0.015}
+                    accentColor="#F59E0B"
+                    formatValue={(v) => `${(v * 1000).toFixed(0)}ms`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, compressor: { ...cur.fx.compressor, attackSec: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="RELEASE"
+                    value={selectedVoice.fx.compressor.releaseSec}
+                    min={0.02}
+                    max={0.8}
+                    step={0.01}
+                    defaultValue={0.18}
+                    accentColor="#F59E0B"
+                    formatValue={(v) => `${(v * 1000).toFixed(0)}ms`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, compressor: { ...cur.fx.compressor, releaseSec: val } },
+                      }))
+                    }
+                  />
+                  <RotaryKnob
+                    size="sm"
+                    label="GAIN"
+                    value={selectedVoice.fx.compressor.gainDb}
+                    min={0}
+                    max={18}
+                    step={0.5}
+                    defaultValue={3}
+                    accentColor="#F59E0B"
+                    formatValue={(v) => `+${v.toFixed(1)}dB`}
+                    onChange={(val) =>
+                      updateVoice(selectedVoiceIdx, (cur) => ({
+                        ...cur,
+                        fx: { ...cur.fx, compressor: { ...cur.fx.compressor, gainDb: val } },
+                      }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
           )}
         </section>
 
@@ -2885,6 +3442,200 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                 }))
               }
             />
+          </div>
+
+          {/* Biosphere Individual Preamps & Modulations Strip */}
+          <div className="grid grid-cols-5 gap-1.5 p-1.5 rounded-lg bg-black/40 border border-white/5 font-studio-mono text-[9px]">
+            {/* Rain Preamp & Mod */}
+            <div className="flex flex-col gap-1 items-center text-center">
+              <span className="text-sky-300 font-bold">RAIN PRE</span>
+              <RotaryKnob
+                size="sm"
+                label="PREAMP"
+                value={patch.biosphere.rainPreamp ?? 1.0}
+                min={0.2}
+                max={3.0}
+                step={0.05}
+                defaultValue={1.0}
+                accentColor="#38BDF8"
+                formatValue={(v) => `${v.toFixed(1)}x`}
+                onChange={(val) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, rainPreamp: val },
+                  }))
+                }
+              />
+              <select
+                aria-label="Rain Mod Rate"
+                value={patch.biosphere.rainModRate ?? '4-bar'}
+                onChange={(e) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, rainModRate: e.target.value as BiosphereModRate },
+                  }))
+                }
+                className="w-full h-5 rounded bg-black/70 border border-white/10 text-[8px] text-gray-300 cursor-pointer"
+              >
+                {(['free', '1/16', '1/8', '1/4', '1/2', '1-bar', '2-bar', '4-bar', '8-bar'] as BiosphereModRate[]).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Stream Preamp & Mod */}
+            <div className="flex flex-col gap-1 items-center text-center">
+              <span className="text-cyan-300 font-bold">STREAM PRE</span>
+              <RotaryKnob
+                size="sm"
+                label="PREAMP"
+                value={patch.biosphere.streamPreamp ?? 1.2}
+                min={0.2}
+                max={3.0}
+                step={0.05}
+                defaultValue={1.2}
+                accentColor="#06B6D4"
+                formatValue={(v) => `${v.toFixed(1)}x`}
+                onChange={(val) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, streamPreamp: val },
+                  }))
+                }
+              />
+              <select
+                aria-label="Stream Mod Rate"
+                value={patch.biosphere.streamModRate ?? '2-bar'}
+                onChange={(e) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, streamModRate: e.target.value as BiosphereModRate },
+                  }))
+                }
+                className="w-full h-5 rounded bg-black/70 border border-white/10 text-[8px] text-gray-300 cursor-pointer"
+              >
+                {(['free', '1/16', '1/8', '1/4', '1/2', '1-bar', '2-bar', '4-bar', '8-bar'] as BiosphereModRate[]).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Waves Preamp & Mod */}
+            <div className="flex flex-col gap-1 items-center text-center">
+              <span className="text-emerald-300 font-bold">WAVES PRE</span>
+              <RotaryKnob
+                size="sm"
+                label="PREAMP"
+                value={patch.biosphere.wavesPreamp ?? 1.1}
+                min={0.2}
+                max={3.0}
+                step={0.05}
+                defaultValue={1.1}
+                accentColor="#10B981"
+                formatValue={(v) => `${v.toFixed(1)}x`}
+                onChange={(val) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, wavesPreamp: val },
+                  }))
+                }
+              />
+              <select
+                aria-label="Waves Mod Rate"
+                value={patch.biosphere.wavesModRate ?? '8-bar'}
+                onChange={(e) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, wavesModRate: e.target.value as BiosphereModRate },
+                  }))
+                }
+                className="w-full h-5 rounded bg-black/70 border border-white/10 text-[8px] text-gray-300 cursor-pointer"
+              >
+                {(['free', '1/16', '1/8', '1/4', '1/2', '1-bar', '2-bar', '4-bar', '8-bar'] as BiosphereModRate[]).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Wind Preamp & Mod */}
+            <div className="flex flex-col gap-1 items-center text-center">
+              <span className="text-purple-300 font-bold">WIND PRE</span>
+              <RotaryKnob
+                size="sm"
+                label="PREAMP"
+                value={patch.biosphere.windPreamp ?? 1.0}
+                min={0.2}
+                max={3.0}
+                step={0.05}
+                defaultValue={1.0}
+                accentColor="#A855F7"
+                formatValue={(v) => `${v.toFixed(1)}x`}
+                onChange={(val) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, windPreamp: val },
+                  }))
+                }
+              />
+              <select
+                aria-label="Wind Mod Rate"
+                value={patch.biosphere.windModRate ?? '4-bar'}
+                onChange={(e) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, windModRate: e.target.value as BiosphereModRate },
+                  }))
+                }
+                className="w-full h-5 rounded bg-black/70 border border-white/10 text-[8px] text-gray-300 cursor-pointer"
+              >
+                {(['free', '1/16', '1/8', '1/4', '1/2', '1-bar', '2-bar', '4-bar', '8-bar'] as BiosphereModRate[]).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Thunder Preamp & Trigger Input Jack */}
+            <div className="flex flex-col gap-1 items-center text-center">
+              <span className="text-amber-300 font-bold">THUNDER PRE</span>
+              <RotaryKnob
+                size="sm"
+                label="PREAMP"
+                value={patch.biosphere.thunderPreamp ?? 1.2}
+                min={0.2}
+                max={3.0}
+                step={0.05}
+                defaultValue={1.2}
+                accentColor="#F59E0B"
+                formatValue={(v) => `${v.toFixed(1)}x`}
+                onChange={(val) =>
+                  setPatch((p) => ({
+                    ...p,
+                    biosphere: { ...p.biosphere, thunderPreamp: val },
+                  }))
+                }
+              />
+              {/* THUNDER TRIG IN Jack */}
+              <button
+                type="button"
+                data-riley-jack="bio-thunder-trig"
+                onClick={(e) => handleJackClick('bio-thunder-trig', 'in', e)}
+                title={
+                  isJa
+                    ? 'THUNDER TRIG IN 端子（シーケンサーのTRIG OUTから結線して雷発火）'
+                    : 'THUNDER TRIG IN Jack (Patch from sequencer TRIG OUT)'
+                }
+                className={`h-5 px-1.5 rounded-full border flex items-center gap-0.5 cursor-pointer text-[8px] ${
+                  activeSourceJack
+                    ? 'bg-amber-500/30 border-amber-300 text-white animate-pulse'
+                    : patch.cables.some((c) => c.to === 'bio-thunder-trig')
+                      ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                      : 'bg-black/60 border-white/20 text-gray-400 hover:border-amber-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span>TRIG IN</span>
+              </button>
+            </div>
           </div>
 
           {/* Rain Droplet Sync, Soft/Heavy Rain Filter & Test Thunder Trigger */}

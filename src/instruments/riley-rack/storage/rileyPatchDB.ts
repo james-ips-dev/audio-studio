@@ -1,10 +1,12 @@
 import { IncompatiblePatchError } from '../../../core/storageFactory';
 import {
   cloneRileySongPatch,
+  createDefaultBiosphereState,
+  createDefaultVoiceFxRack,
   detectLowSpecDevice,
   RILEY_FACTORY_SONG_PRESETS,
 } from '../constants/songPresets';
-import type { RileySongPatch } from '../types';
+import type { RileySongPatch, VoiceFxRack } from '../types';
 
 const DB_NAME = 'RileyRack800_DB';
 const DB_VERSION = 1;
@@ -43,6 +45,50 @@ function openRileyDB(): Promise<IDBDatabase> {
  */
 export function normalizeRileySongPatch(raw: Partial<RileySongPatch>): RileySongPatch {
   const fallback = cloneRileySongPatch(RILEY_FACTORY_SONG_PRESETS[0]);
+  const defaultBio = createDefaultBiosphereState();
+  const defaultFx = createDefaultVoiceFxRack();
+
+  const rawBio = raw.biosphere ?? fallback.biosphere;
+  const mergedBio = {
+    ...defaultBio,
+    ...rawBio,
+    rainPreamp: typeof rawBio.rainPreamp === 'number' ? rawBio.rainPreamp : 1.0,
+    rainModDepth: typeof rawBio.rainModDepth === 'number' ? rawBio.rainModDepth : 0.25,
+    rainModRate: rawBio.rainModRate ?? '4-bar',
+
+    streamPreamp: typeof rawBio.streamPreamp === 'number' ? rawBio.streamPreamp : 1.2,
+    streamModDepth: typeof rawBio.streamModDepth === 'number' ? rawBio.streamModDepth : 0.3,
+    streamModRate: rawBio.streamModRate ?? '2-bar',
+
+    wavesPreamp: typeof rawBio.wavesPreamp === 'number' ? rawBio.wavesPreamp : 1.1,
+    wavesModDepth: typeof rawBio.wavesModDepth === 'number' ? rawBio.wavesModDepth : 0.4,
+    wavesModRate: rawBio.wavesModRate ?? '8-bar',
+
+    windPreamp: typeof rawBio.windPreamp === 'number' ? rawBio.windPreamp : 1.0,
+    windModDepth: typeof rawBio.windModDepth === 'number' ? rawBio.windModDepth : 0.35,
+    windModRate: rawBio.windModRate ?? '4-bar',
+
+    thunderProb: typeof rawBio.thunderProb === 'number' ? rawBio.thunderProb : 0.15,
+    thunderPreamp: typeof rawBio.thunderPreamp === 'number' ? rawBio.thunderPreamp : 1.2,
+  };
+
+  const rawVoices = Array.isArray(raw.voices) && raw.voices.length === 8 ? raw.voices : fallback.voices;
+  const mergedVoices = rawVoices.map((v, i) => {
+    const rawFx = (v.fx ?? {}) as Partial<VoiceFxRack>;
+    return {
+      ...v,
+      index: i,
+      id: v.id || `voice-${i + 1}`,
+      fx: {
+        echo: { ...defaultFx.echo, ...(rawFx.echo ?? {}) },
+        delay: { ...defaultFx.delay, ...(rawFx.delay ?? {}) },
+        flanger: { ...defaultFx.flanger, ...(rawFx.flanger ?? {}) },
+        phaser: { ...defaultFx.phaser, ...(rawFx.phaser ?? {}) },
+        compressor: { ...defaultFx.compressor, ...(rawFx.compressor ?? {}) },
+      },
+    };
+  });
+
   return {
     ...fallback,
     ...raw,
@@ -66,19 +112,13 @@ export function normalizeRileySongPatch(raw: Partial<RileySongPatch>): RileySong
       feedback: Math.min(0.64, Math.max(0, raw.delay?.feedback ?? fallback.delay.feedback)),
       crossFeed: Math.min(0.14, Math.max(0, raw.delay?.crossFeed ?? fallback.delay.crossFeed)),
     },
-    biosphere: {
-      ...fallback.biosphere,
-      ...(raw.biosphere ?? {}),
-    },
+    biosphere: mergedBio,
     evolve: {
       ...fallback.evolve,
       ...(raw.evolve ?? {}),
     },
     cables: Array.isArray(raw.cables) ? raw.cables : fallback.cables,
-    voices:
-      Array.isArray(raw.voices) && raw.voices.length === 8
-        ? raw.voices
-        : fallback.voices,
+    voices: mergedVoices,
   };
 }
 

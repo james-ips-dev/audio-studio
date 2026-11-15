@@ -6,6 +6,7 @@ import type {
   ScaleId,
   StepCell,
   TapeDelayState,
+  VoiceFxRack,
   VoiceTrack,
 } from '../types';
 import {
@@ -23,6 +24,89 @@ export const VOICE_TRACK_COLORS: string[] = [
   '#06B6D4', // Voice 7: Cyan
   '#84CC16', // Voice 8: Lime
 ];
+
+export function createDefaultVoiceFxRack(): VoiceFxRack {
+  return {
+    echo: {
+      enabled: false,
+      sync: true,
+      syncRate: '1/8',
+      timeMs: 240,
+      feedback: 0.35,
+      toneHz: 2800,
+      mix: 0.35,
+    },
+    delay: {
+      enabled: false,
+      sync: true,
+      syncRate: '1/4',
+      timeMs: 380,
+      feedback: 0.45,
+      crossfeed: 0.15,
+      mix: 0.4,
+    },
+    flanger: {
+      enabled: false,
+      sync: true,
+      syncRate: '1-bar',
+      rateHz: 0.4,
+      depthMs: 3.5,
+      feedback: 0.45,
+      mix: 0.4,
+    },
+    phaser: {
+      enabled: false,
+      sync: true,
+      syncRate: '2-bar',
+      rateHz: 0.25,
+      depth: 0.65,
+      feedback: 0.5,
+      stages: 4,
+      mix: 0.45,
+    },
+    compressor: {
+      enabled: false,
+      thresholdDb: -18,
+      ratio: 4,
+      attackSec: 0.015,
+      releaseSec: 0.18,
+      gainDb: 3,
+    },
+  };
+}
+
+export function createDefaultBiosphereState(): BiosphereState {
+  return {
+    enabled: true,
+    clockSync: true,
+    masterVol: 0.85,
+    rain: 0.35,
+    rainPreamp: 1.0,
+    rainHeavy: false,
+    rainDropletSync: true,
+    rainModDepth: 0.25,
+    rainModRate: '4-bar',
+
+    stream: 0.4,
+    streamPreamp: 1.2,
+    streamModDepth: 0.3,
+    streamModRate: '2-bar',
+
+    waves: 0.45,
+    wavesPreamp: 1.1,
+    waveSyncBars: 4,
+    wavesModDepth: 0.4,
+    wavesModRate: '8-bar',
+
+    wind: 0.3,
+    windPreamp: 1.0,
+    windModDepth: 0.35,
+    windModRate: '4-bar',
+
+    thunderProb: 0.15,
+    thunderPreamp: 1.2,
+  };
+}
 
 /**
  * Matches the low-spec machine detection in Groovebox and AETHER-8:
@@ -62,6 +146,7 @@ interface VoiceSpec {
   pan: number;
   tapeSend: number;
   pattern: Array<number | null>;
+  fx?: Partial<VoiceFxRack>;
 }
 
 function createVoicesFromSpecs(specs: VoiceSpec[]): VoiceTrack[] {
@@ -75,6 +160,15 @@ function createVoicesFromSpecs(specs: VoiceSpec[]): VoiceTrack[] {
         s.synthPresetIdx % FULL_SYNTH_VOICE_PRESETS.length
       ];
 
+    const defaultFx = createDefaultVoiceFxRack();
+    const mergedFx: VoiceFxRack = {
+      echo: { ...defaultFx.echo, ...(s.fx?.echo ?? {}) },
+      delay: { ...defaultFx.delay, ...(s.fx?.delay ?? {}) },
+      flanger: { ...defaultFx.flanger, ...(s.fx?.flanger ?? {}) },
+      phaser: { ...defaultFx.phaser, ...(s.fx?.phaser ?? {}) },
+      compressor: { ...defaultFx.compressor, ...(s.fx?.compressor ?? {}) },
+    };
+
     return {
       id: `voice-${idx + 1}`,
       index: idx,
@@ -86,6 +180,7 @@ function createVoicesFromSpecs(specs: VoiceSpec[]): VoiceTrack[] {
       steps: buildSteps(s.pattern),
       riley: JSON.parse(JSON.stringify(rileyPreset.params)),
       synth: JSON.parse(JSON.stringify(synthPreset.params)),
+      fx: mergedFx,
       volume: s.volume,
       pan: s.pan,
       tapeSend: s.tapeSend,
@@ -158,17 +253,14 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.34,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: false,
-      clockSync: true,
-      masterVol: 0.35,
-      rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.15,
-      waves: 0.2,
-      waveSyncBars: 4,
-      wind: 0.15,
-      thunderProb: 0.0,
+      masterVol: 0.5,
+      rain: 0.1,
+      stream: 0.25,
+      waves: 0.3,
+      wind: 0.2,
+      thunderProb: 0.05,
     },
     evolve: {
       enabled: true,
@@ -181,6 +273,7 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       { id: 'c-inc-1', from: 'clk-div-1', to: 'v1-clk', color: '#F59E0B' },
       { id: 'c-inc-2', from: 'clk-div-2', to: 'v6-clk', color: '#EC4899' },
       { id: 'c-inc-3', from: 'v3-cv', to: 'tla-in-l', color: '#10B981' },
+      { id: 'c-inc-4', from: 'v1-seq-trig', to: 'bio-thunder-trig', color: '#F43F5E' },
     ],
     voices: [
       {
@@ -194,6 +287,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: -0.35,
         tapeSend: 0.25,
         pattern: [0, 2, 0, 2, 4, null, 0, 2],
+        fx: {
+          echo: { enabled: true, sync: true, syncRate: '1/8', timeMs: 254, feedback: 0.3, toneHz: 3200, mix: 0.25 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',
@@ -206,6 +302,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: 0.35,
         tapeSend: 0.32,
         pattern: [2, 3, 4, null, 2, 4, 5],
+        fx: {
+          delay: { enabled: true, sync: true, syncRate: '1/4', timeMs: 380, feedback: 0.35, crossfeed: 0.2, mix: 0.3 },
+        },
       },
       {
         mode: 'FULL_SYNTH_SUITE',
@@ -218,6 +317,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: -0.5,
         tapeSend: 0.38,
         pattern: [0, 0, 0, 2, 4, 2, 4, null],
+        fx: {
+          phaser: { enabled: true, sync: true, syncRate: '2-bar', rateHz: 0.3, depth: 0.6, feedback: 0.45, stages: 4, mix: 0.35 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',
@@ -230,6 +332,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: 0.0,
         tapeSend: 0.15,
         pattern: [0, null, 0, 4, 0, null, 6, 4, 0],
+        fx: {
+          compressor: { enabled: true, thresholdDb: -16, ratio: 4, attackSec: 0.01, releaseSec: 0.15, gainDb: 2 },
+        },
       },
       {
         mode: 'FULL_SYNTH_SUITE',
@@ -242,6 +347,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: 0.55,
         tapeSend: 0.42,
         pattern: [4, 5, 6, 4, null, 2, 4, 6, null, 5, 4],
+        fx: {
+          flanger: { enabled: true, sync: true, syncRate: '1-bar', rateHz: 0.5, depthMs: 2.8, feedback: 0.35, mix: 0.3 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',
@@ -302,17 +410,14 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.42,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.25,
-      rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.22,
-      waves: 0.0,
-      waveSyncBars: 0,
-      wind: 0.3,
-      thunderProb: 0.0,
+      masterVol: 0.6,
+      rain: 0.1,
+      stream: 0.45,
+      waves: 0.2,
+      wind: 0.4,
+      thunderProb: 0.08,
     },
     evolve: {
       enabled: true,
@@ -339,6 +444,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: -0.45,
         tapeSend: 0.46,
         pattern: [0, 2, 4, 5, 6, 4, 2],
+        fx: {
+          phaser: { enabled: true, sync: true, syncRate: '1-bar', rateHz: 0.5, depth: 0.7, feedback: 0.55, stages: 8, mix: 0.4 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',
@@ -351,6 +459,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: 0.45,
         tapeSend: 0.44,
         pattern: [4, 6, 5, 4, 2, 3, 4, 2, 0],
+        fx: {
+          flanger: { enabled: true, sync: true, syncRate: '2-bar', rateHz: 0.35, depthMs: 4.2, feedback: 0.5, mix: 0.35 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',
@@ -447,17 +558,15 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.45,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.3,
+      masterVol: 0.7,
       rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.0,
-      waves: 0.15,
+      stream: 0.1,
+      waves: 0.3,
       waveSyncBars: 8,
-      wind: 0.42,
-      thunderProb: 0.0,
+      wind: 0.65,
+      thunderProb: 0.12,
     },
     evolve: {
       enabled: true,
@@ -470,6 +579,7 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       { id: 'c-psd-1', from: 'clk-div-2', to: 'v3-clk', color: '#10B981' },
       { id: 'c-psd-2', from: 'clk-div-5', to: 'v6-clk', color: '#EC4899' },
       { id: 'c-psd-3', from: 'v1-cv', to: 'tla-in-l', color: '#F59E0B' },
+      { id: 'c-psd-4', from: 'v6-seq-trig', to: 'bio-thunder-trig', color: '#38BDF8' },
     ],
     voices: [
       {
@@ -591,17 +701,14 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.52,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.32,
-      rain: 0.18,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.25,
-      waves: 0.25,
-      waveSyncBars: 4,
-      wind: 0.2,
-      thunderProb: 0.0,
+      masterVol: 0.75,
+      rain: 0.35,
+      stream: 0.4,
+      waves: 0.45,
+      wind: 0.3,
+      thunderProb: 0.05,
     },
     evolve: {
       enabled: true,
@@ -735,17 +842,15 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.4,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.42,
+      masterVol: 0.8,
       rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.12,
+      stream: 0.2,
       waves: 0.0,
-      waveSyncBars: 0,
-      wind: 0.65,
-      thunderProb: 0.08,
+      wind: 0.75,
+      windPreamp: 1.4,
+      thunderProb: 0.12,
     },
     evolve: {
       enabled: true,
@@ -879,17 +984,14 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.56,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: false,
-      clockSync: true,
-      masterVol: 0.3,
-      rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.1,
-      waves: 0.2,
-      waveSyncBars: 8,
-      wind: 0.25,
-      thunderProb: 0.0,
+      masterVol: 0.6,
+      rain: 0.1,
+      stream: 0.2,
+      waves: 0.35,
+      wind: 0.45,
+      thunderProb: 0.08,
     },
     evolve: {
       enabled: true,
@@ -1023,17 +1125,14 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.38,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.28,
+      masterVol: 0.6,
       rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.18,
-      waves: 0.0,
-      waveSyncBars: 0,
-      wind: 0.35,
-      thunderProb: 0.0,
+      stream: 0.3,
+      waves: 0.1,
+      wind: 0.5,
+      thunderProb: 0.08,
     },
     evolve: {
       enabled: true,
@@ -1167,17 +1266,15 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.5,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.48,
-      rain: 0.12,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.2,
-      waves: 0.68,
+      masterVol: 0.95,
+      rain: 0.25,
+      stream: 0.45,
+      waves: 0.9,
       waveSyncBars: 8,
-      wind: 0.32,
-      thunderProb: 0.0,
+      wind: 0.55,
+      thunderProb: 0.05,
     },
     evolve: {
       enabled: true,
@@ -1312,17 +1409,14 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.34,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: false,
-      clockSync: true,
-      masterVol: 0.25,
+      masterVol: 0.55,
       rain: 0.0,
-      rainHeavy: false,
-      rainDropletSync: false,
-      stream: 0.2,
-      waves: 0.0,
-      waveSyncBars: 0,
-      wind: 0.15,
-      thunderProb: 0.0,
+      stream: 0.3,
+      waves: 0.1,
+      wind: 0.25,
+      thunderProb: 0.05,
     },
     evolve: {
       enabled: true,
@@ -1456,17 +1550,18 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       mix: 0.46,
     },
     biosphere: {
+      ...createDefaultBiosphereState(),
       enabled: true,
-      clockSync: true,
-      masterVol: 0.55,
-      rain: 0.62,
-      rainHeavy: false,
+      masterVol: 0.9,
+      rain: 0.85,
+      rainPreamp: 1.4,
       rainDropletSync: true,
-      stream: 0.45,
-      waves: 0.25,
-      waveSyncBars: 4,
-      wind: 0.28,
-      thunderProb: 0.22,
+      stream: 0.7,
+      streamPreamp: 1.3,
+      waves: 0.5,
+      wind: 0.45,
+      thunderProb: 0.28,
+      thunderPreamp: 1.5,
     },
     evolve: {
       enabled: true,
@@ -1480,6 +1575,7 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
       { id: 'c-kyo-2', from: 'clk-div-5', to: 'v5-clk', color: '#A855F7' },
       { id: 'c-kyo-3', from: 'v3-cv', to: 'tla-in-l', color: '#10B981' },
       { id: 'c-kyo-4', from: 'v4-cv', to: 'tla-in-r', color: '#F43F5E' },
+      { id: 'c-kyo-5', from: 'v1-seq-trig', to: 'bio-thunder-trig', color: '#EC4899' },
     ],
     voices: [
       {
@@ -1493,6 +1589,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: -0.45,
         tapeSend: 0.52,
         pattern: [0, null, 3, null, 2, null, 4],
+        fx: {
+          delay: { enabled: true, sync: true, syncRate: '1/2', timeMs: 625, feedback: 0.48, crossfeed: 0.25, mix: 0.4 },
+        },
       },
       {
         mode: 'FULL_SYNTH_SUITE',
@@ -1505,6 +1604,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: 0.4,
         tapeSend: 0.48,
         pattern: [0, 2, 3, null, 4, 2, null, 1, null],
+        fx: {
+          echo: { enabled: true, sync: true, syncRate: '1/8', timeMs: 312, feedback: 0.4, toneHz: 3400, mix: 0.35 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',
@@ -1517,6 +1619,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: -0.35,
         tapeSend: 0.5,
         pattern: [4, 3, 2, null, 0, 1, 2, null, 3, 4, null],
+        fx: {
+          phaser: { enabled: true, sync: true, syncRate: '1-bar', rateHz: 0.4, depth: 0.65, feedback: 0.5, stages: 4, mix: 0.4 },
+        },
       },
       {
         mode: 'FULL_SYNTH_SUITE',
@@ -1541,6 +1646,9 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
         pan: -0.2,
         tapeSend: 0.54,
         pattern: [0, null, null, 3, null, null, 4, null, null, 2, null, null, 1, null, null],
+        fx: {
+          flanger: { enabled: true, sync: true, syncRate: '2-bar', rateHz: 0.2, depthMs: 5.5, feedback: 0.55, mix: 0.4 },
+        },
       },
       {
         mode: 'ORIGINAL_RILEY',

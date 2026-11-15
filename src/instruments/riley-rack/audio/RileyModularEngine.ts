@@ -1,10 +1,13 @@
 import { audioGuard } from '../../../core/audioGuard';
 import { quantizeScaleFrequency, RILEY_SCALES } from '../constants/scales';
 import type {
+  BiosphereModRate,
   BiosphereState,
   EvolveState,
   RileySongPatch,
   TapeDelayState,
+  VoiceFxRack,
+  VoiceFxSyncRate,
   VoiceTrack,
 } from '../types';
 
@@ -23,6 +26,33 @@ export type EvolveMutationListener = (
 interface ActiveVoiceHandle {
   ampGain: GainNode;
   stopAt: (time: number) => void;
+}
+
+/**
+ * Calculates note duration in seconds for tempo-synced FX and LFOs
+ */
+function getSyncDurationSec(rate: VoiceFxSyncRate | BiosphereModRate, bpm: number): number {
+  const quarterSec = 60 / Math.max(20, bpm);
+  switch (rate) {
+    case '1/16':
+      return quarterSec * 0.25;
+    case '1/8':
+      return quarterSec * 0.5;
+    case '1/4':
+      return quarterSec * 1.0;
+    case '1/2':
+      return quarterSec * 2.0;
+    case '1-bar':
+      return quarterSec * 4.0;
+    case '2-bar':
+      return quarterSec * 8.0;
+    case '4-bar':
+      return quarterSec * 16.0;
+    case '8-bar':
+      return quarterSec * 32.0;
+    default:
+      return quarterSec;
+  }
 }
 
 function makeWestCoastWavefoldCurve(foldAmount: number): Float32Array<ArrayBuffer> {
@@ -112,6 +142,8 @@ export class RileyModularEngine {
   private bioWavesGain: GainNode | null = null;
   private bioWindSource: AudioBufferSourceNode | null = null;
   private bioWindGain: GainNode | null = null;
+  private bioRainLfo: OscillatorNode | null = null;
+  private bioStreamLfo: OscillatorNode | null = null;
   private bioWindLfo: OscillatorNode | null = null;
   private bioWavesLfo: OscillatorNode | null = null;
   private currentBioEcoMode: boolean | null = null;
@@ -616,6 +648,26 @@ export class RileyModularEngine {
       wavesLfoGain.connect(wavesFilter.frequency);
       wavesLfo.start();
       this.bioWavesLfo = wavesLfo;
+
+      const rainLfo = ctx.createOscillator();
+      rainLfo.type = 'sine';
+      rainLfo.frequency.setValueAtTime(0.2, ctx.currentTime);
+      const rainLfoGain = ctx.createGain();
+      rainLfoGain.gain.setValueAtTime(400, ctx.currentTime);
+      rainLfo.connect(rainLfoGain);
+      rainLfoGain.connect(rainFilter.frequency);
+      rainLfo.start();
+      this.bioRainLfo = rainLfo;
+
+      const streamLfo = ctx.createOscillator();
+      streamLfo.type = 'triangle';
+      streamLfo.frequency.setValueAtTime(0.25, ctx.currentTime);
+      const streamLfoGain = ctx.createGain();
+      streamLfoGain.gain.setValueAtTime(220, ctx.currentTime);
+      streamLfo.connect(streamLfoGain);
+      streamLfoGain.connect(streamFilter.frequency);
+      streamLfo.start();
+      this.bioStreamLfo = streamLfo;
     }
 
     this.bioRainFilter = rainFilter;
@@ -633,6 +685,8 @@ export class RileyModularEngine {
       this.bioWindSource,
       this.bioWindLfo,
       this.bioWavesLfo,
+      this.bioRainLfo,
+      this.bioStreamLfo,
     ];
     for (const s of sources) {
       if (s) {
@@ -657,6 +711,8 @@ export class RileyModularEngine {
     this.bioWindSource = null;
     this.bioWindLfo = null;
     this.bioWavesLfo = null;
+    this.bioRainLfo = null;
+    this.bioStreamLfo = null;
     this.bioMasterGain = null;
   }
 
@@ -674,8 +730,14 @@ export class RileyModularEngine {
     }
 
     const now = this.ctx.currentTime;
-    const master = bio.enabled ? Math.max(0, Math.min(1, bio.masterVol)) * 0.55 : 0;
+    // Calibrated master level (up to 2.0 headroom)
+    const master = bio.enabled ? Math.max(0, Math.min(2.0, bio.masterVol)) * 0.42 : 0;
     this.bioMasterGain.gain.setTargetAtTime(master, now, 0.06);
+
+    // Rain: calibrated preamp (default ~1.0) * user volume
+    const rainPreamp = bio.rainPreamp ?? 1.0;
+    const rainLevel = bio.rain * rainPreamp * 0.32;
+    this.bioRainGain.gain.setTargetAtTime(rainLevel, now, 0.06);
 
     // Rain Heavy toggle: false = 3400Hz soft, true = 2100Hz heavy
     this.bioRainFilter.frequency.setTargetAtTime(
@@ -683,26 +745,67 @@ export class RileyModularEngine {
       now,
       0.08
     );
-    this.bioRainGain.gain.setTargetAtTime(bio.rain * 0.35, now, 0.06);
-    this.bioStreamGain.gain.setTargetAtTime(bio.stream * 0.38, now, 0.06);
 
+    // Stream: calibrated preamp * user volume
+    const streamPreamp = bio.streamPreamp ?? 1.2;
+    const streamLevel = bio.stream * streamPreamp * 0.35;
+    this.bioStreamGain.gain.setTargetAtTime(streamLevel, now, 0.06);
+
+    // Waves: calibrated preamp * user volume
+    const wavesPreamp = bio.wavesPreamp ?? 1.1;
+    const wavesLevel = bio.waves * wavesPreamp * 0.38;
     if (bio.waveSyncBars === 0 || !bio.clockSync || !this.isPlaying) {
-      this.bioWavesGain.gain.setTargetAtTime(bio.waves * 0.42, now, 0.08);
+      this.bioWavesGain.gain.setTargetAtTime(wavesLevel, now, 0.08);
     }
-    this.bioWindGain.gain.setTargetAtTime(bio.wind * 0.4, now, 0.06);
+
+    // Wind: calibrated preamp * user volume
+    const windPreamp = bio.windPreamp ?? 1.0;
+    const windLevel = bio.wind * windPreamp * 0.35;
+    this.bioWindGain.gain.setTargetAtTime(windLevel, now, 0.06);
+
+    // Sync Biosphere LFO Modulation Rates & Depths
+    if (!this.ecoMode) {
+      const bpm = this.patch.bpm;
+      if (this.bioRainLfo && bio.rainModRate) {
+        const rateHz = bio.rainModRate === 'free'
+          ? 0.2
+          : 1 / Math.max(0.1, getSyncDurationSec(bio.rainModRate, bpm));
+        this.bioRainLfo.frequency.setTargetAtTime(rateHz, now, 0.1);
+      }
+      if (this.bioStreamLfo && bio.streamModRate) {
+        const rateHz = bio.streamModRate === 'free'
+          ? 0.25
+          : 1 / Math.max(0.1, getSyncDurationSec(bio.streamModRate, bpm));
+        this.bioStreamLfo.frequency.setTargetAtTime(rateHz, now, 0.1);
+      }
+      if (this.bioWavesLfo && bio.wavesModRate) {
+        const rateHz = bio.wavesModRate === 'free'
+          ? 0.11
+          : 1 / Math.max(0.1, getSyncDurationSec(bio.wavesModRate, bpm));
+        this.bioWavesLfo.frequency.setTargetAtTime(rateHz, now, 0.1);
+      }
+      if (this.bioWindLfo && bio.windModRate) {
+        const rateHz = bio.windModRate === 'free'
+          ? 0.16
+          : 1 / Math.max(0.1, getSyncDurationSec(bio.windModRate, bpm));
+        this.bioWindLfo.frequency.setTargetAtTime(rateHz, now, 0.1);
+      }
+    }
   }
 
   /**
-   * Triggers a procedural distant thunderclap (`TEST THUNDER` or probabilistic bar trigger).
+   * Triggers a procedural distant thunderclap (`TEST THUNDER`, probabilistic bar trigger, or patchable trigger in).
    */
   public triggerThunder(scheduledTime?: number): void {
     const ctx = this.ensureContext();
     if (!this.masterLimiter || !this.noiseBuffers) return;
 
     const t = scheduledTime ?? ctx.currentTime + 0.01;
-    const bioVol = this.patch.biosphere.enabled
-      ? Math.max(0.25, this.patch.biosphere.masterVol)
-      : 0.55;
+    const bio = this.patch.biosphere;
+    const bioPreamp = bio.thunderPreamp ?? 1.2;
+    const bioVol = bio.enabled
+      ? Math.max(0.25, Math.min(2.0, bio.masterVol)) * bioPreamp
+      : 0.55 * bioPreamp;
 
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffers.brown;
@@ -902,6 +1005,19 @@ export class RileyModularEngine {
           );
           const gateDur = Math.max(0.04, (sixteenthSec / Math.max(0.2, speed)) * 0.82);
           this.triggerVoiceNote(v, freq, time, gateDur);
+
+          // Check if sequencer trigger jack `v${v.index + 1}-seq-trig` is patched to `bio-thunder-trig`
+          const seqTrigId = `v${v.index + 1}-seq-trig`;
+          const patchesToThunder = cables.some(
+            (c) => c.from === seqTrigId && c.to === 'bio-thunder-trig'
+          );
+          if (patchesToThunder && this.patch.biosphere.enabled) {
+            // Evaluates probability on sequencer trigger
+            const prob = this.patch.biosphere.thunderProb ?? 0.15;
+            if (Math.random() <= Math.max(0.05, prob)) {
+              this.triggerThunder(time + 0.05);
+            }
+          }
         }
       }
     }
@@ -1210,6 +1326,219 @@ export class RileyModularEngine {
   }
 
   /**
+   * Applies Per-Voice Effects DSP Rack (Echo -> Delay -> Flanger -> Phaser -> Compressor)
+   */
+  private applyVoiceEffects(
+    ctx: AudioContext,
+    inputNode: AudioNode,
+    destNode: AudioNode,
+    fx: VoiceFxRack | undefined,
+    bpm: number,
+    time: number,
+    stopTime: number,
+    oscsToStop: AudioScheduledSourceNode[]
+  ): void {
+    if (!fx) {
+      inputNode.connect(destNode);
+      return;
+    }
+
+    let currentNode: AudioNode = inputNode;
+
+    // 1. ECHO (Filtered slapback / tape-ish echo)
+    if (fx.echo && fx.echo.enabled && fx.echo.mix > 0.01) {
+      const e = fx.echo;
+      const echoDelaySec = e.sync
+        ? getSyncDurationSec(e.syncRate, bpm)
+        : Math.max(0.02, Math.min(1.0, e.timeMs / 1000));
+
+      const echoSplit = ctx.createGain();
+      const echoDelay = ctx.createDelay(1.2);
+      echoDelay.delayTime.setValueAtTime(echoDelaySec, time);
+
+      const echoTone = ctx.createBiquadFilter();
+      echoTone.type = 'lowpass';
+      echoTone.frequency.setValueAtTime(Math.max(300, Math.min(8000, e.toneHz)), time);
+
+      const echoFb = ctx.createGain();
+      echoFb.gain.setValueAtTime(Math.max(0, Math.min(0.85, e.feedback)), time);
+
+      const echoWet = ctx.createGain();
+      echoWet.gain.setValueAtTime(Math.max(0, Math.min(1, e.mix)), time);
+
+      const echoSum = ctx.createGain();
+
+      currentNode.connect(echoSplit);
+      echoSplit.connect(echoSum); // Dry path
+
+      echoSplit.connect(echoDelay);
+      echoDelay.connect(echoTone);
+      echoTone.connect(echoWet);
+      echoWet.connect(echoSum); // Wet path
+
+      echoTone.connect(echoFb);
+      echoFb.connect(echoDelay); // Feedback loop
+
+      currentNode = echoSum;
+    }
+
+    // 2. DELAY (Crossfed stereo-ish delay)
+    if (fx.delay && fx.delay.enabled && fx.delay.mix > 0.01) {
+      const d = fx.delay;
+      const delaySec = d.sync
+        ? getSyncDurationSec(d.syncRate, bpm)
+        : Math.max(0.04, Math.min(1.6, d.timeMs / 1000));
+
+      const delaySplit = ctx.createGain();
+      const delayNode = ctx.createDelay(2.0);
+      delayNode.delayTime.setValueAtTime(delaySec, time);
+
+      const delayFb = ctx.createGain();
+      delayFb.gain.setValueAtTime(Math.max(0, Math.min(0.88, d.feedback)), time);
+
+      const delayWet = ctx.createGain();
+      delayWet.gain.setValueAtTime(Math.max(0, Math.min(1, d.mix)), time);
+
+      const delaySum = ctx.createGain();
+
+      currentNode.connect(delaySplit);
+      delaySplit.connect(delaySum);
+
+      delaySplit.connect(delayNode);
+      delayNode.connect(delayWet);
+      delayWet.connect(delaySum);
+
+      delayNode.connect(delayFb);
+      delayFb.connect(delayNode);
+
+      currentNode = delaySum;
+    }
+
+    // 3. FLANGER (Modulated short delay, bypassed in Eco Mode if disabled)
+    if (fx.flanger && fx.flanger.enabled && fx.flanger.mix > 0.01 && !this.ecoMode) {
+      const fl = fx.flanger;
+      const flSplit = ctx.createGain();
+      const flDelay = ctx.createDelay(0.04);
+      const baseDelay = 0.0035; // 3.5ms
+      flDelay.delayTime.setValueAtTime(baseDelay, time);
+
+      const flLfo = ctx.createOscillator();
+      flLfo.type = 'sine';
+      const lfoRate = fl.sync
+        ? 1 / Math.max(0.1, getSyncDurationSec(fl.syncRate, bpm))
+        : Math.max(0.05, Math.min(8, fl.rateHz));
+      flLfo.frequency.setValueAtTime(lfoRate, time);
+
+      const flLfoGain = ctx.createGain();
+      const depthSec = Math.max(0.0005, Math.min(0.008, fl.depthMs / 1000));
+      flLfoGain.gain.setValueAtTime(depthSec, time);
+
+      flLfo.connect(flLfoGain);
+      flLfoGain.connect(flDelay.delayTime);
+
+      const flFb = ctx.createGain();
+      flFb.gain.setValueAtTime(Math.max(-0.85, Math.min(0.85, fl.feedback)), time);
+
+      const flWet = ctx.createGain();
+      flWet.gain.setValueAtTime(Math.max(0, Math.min(1, fl.mix)), time);
+
+      const flSum = ctx.createGain();
+
+      currentNode.connect(flSplit);
+      flSplit.connect(flSum); // dry
+
+      flSplit.connect(flDelay);
+      flDelay.connect(flWet);
+      flWet.connect(flSum); // wet
+
+      flDelay.connect(flFb);
+      flFb.connect(flDelay); // feedback
+
+      flLfo.start(time);
+      flLfo.stop(stopTime + 0.5);
+      oscsToStop.push(flLfo);
+
+      currentNode = flSum;
+    }
+
+    // 4. PHASER (Cascade of allpass filters modulated by LFO)
+    if (fx.phaser && fx.phaser.enabled && fx.phaser.mix > 0.01 && !this.ecoMode) {
+      const ph = fx.phaser;
+      const phSplit = ctx.createGain();
+      const stageCount = ph.stages === 8 ? 8 : 4;
+      const allpasses: BiquadFilterNode[] = [];
+
+      for (let i = 0; i < stageCount; i++) {
+        const ap = ctx.createBiquadFilter();
+        ap.type = 'allpass';
+        ap.frequency.setValueAtTime(1000 + i * 200, time);
+        allpasses.push(ap);
+      }
+
+      for (let i = 0; i < allpasses.length - 1; i++) {
+        allpasses[i].connect(allpasses[i + 1]);
+      }
+
+      const phLfo = ctx.createOscillator();
+      phLfo.type = 'sine';
+      const lfoRate = ph.sync
+        ? 1 / Math.max(0.1, getSyncDurationSec(ph.syncRate, bpm))
+        : Math.max(0.05, Math.min(8, ph.rateHz));
+      phLfo.frequency.setValueAtTime(lfoRate, time);
+
+      const phLfoGain = ctx.createGain();
+      phLfoGain.gain.setValueAtTime(ph.depth * 800, time);
+      phLfo.connect(phLfoGain);
+
+      for (const ap of allpasses) {
+        phLfoGain.connect(ap.frequency);
+      }
+
+      const phFb = ctx.createGain();
+      phFb.gain.setValueAtTime(Math.max(0, Math.min(0.85, ph.feedback)), time);
+      allpasses[allpasses.length - 1].connect(phFb);
+      phFb.connect(allpasses[0]);
+
+      const phWet = ctx.createGain();
+      phWet.gain.setValueAtTime(Math.max(0, Math.min(1, ph.mix)), time);
+
+      const phSum = ctx.createGain();
+      currentNode.connect(phSplit);
+      phSplit.connect(phSum); // dry
+
+      phSplit.connect(allpasses[0]);
+      allpasses[allpasses.length - 1].connect(phWet);
+      phWet.connect(phSum); // wet
+
+      phLfo.start(time);
+      phLfo.stop(stopTime + 0.5);
+      oscsToStop.push(phLfo);
+
+      currentNode = phSum;
+    }
+
+    // 5. COMPRESSOR (Dynamics shaping per voice)
+    if (fx.compressor && fx.compressor.enabled) {
+      const c = fx.compressor;
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.setValueAtTime(Math.max(-48, Math.min(0, c.thresholdDb)), time);
+      comp.ratio.setValueAtTime(Math.max(1, Math.min(20, c.ratio)), time);
+      comp.attack.setValueAtTime(Math.max(0.001, Math.min(0.1, c.attackSec)), time);
+      comp.release.setValueAtTime(Math.max(0.02, Math.min(0.8, c.releaseSec)), time);
+
+      const makeup = ctx.createGain();
+      const makeupLinear = Math.pow(10, (c.gainDb ?? 0) / 20);
+      makeup.gain.setValueAtTime(makeupLinear, time);
+
+      currentNode.connect(comp);
+      comp.connect(makeup);
+      currentNode = makeup;
+    }
+
+    currentNode.connect(destNode);
+  }
+
+  /**
    * Engine 1: ORIGINAL RILEY (`organ` | `pluck` | `pad`) with Section 6 Eco Mode reductions
    */
   private synthesizeOriginalRileyVoice(
@@ -1404,7 +1733,16 @@ export class RileyModularEngine {
     }
 
     filter.connect(ampGain);
-    ampGain.connect(destPanner);
+    this.applyVoiceEffects(
+      ctx,
+      ampGain,
+      destPanner,
+      voice.fx,
+      this.patch.bpm,
+      time,
+      stopTime,
+      oscsToStop
+    );
 
     this.registerActiveVoiceHandle(voice.index, ampGain, oscsToStop, stopTime);
   }
@@ -1616,7 +1954,16 @@ export class RileyModularEngine {
     ampGain.gain.exponentialRampToValueAtTime(0.0001, noteOffTime + ampRel);
 
     postFilterNode.connect(ampGain);
-    ampGain.connect(destPanner);
+    this.applyVoiceEffects(
+      ctx,
+      ampGain,
+      destPanner,
+      voice.fx,
+      this.patch.bpm,
+      time,
+      stopTime,
+      oscsToStop
+    );
 
     this.registerActiveVoiceHandle(voice.index, ampGain, oscsToStop, stopTime);
   }
