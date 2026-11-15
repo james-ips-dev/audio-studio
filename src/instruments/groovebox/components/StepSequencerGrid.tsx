@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from '../../../core/useTranslation';
 import {
   computeEuclideanSteps,
   midiToNoteName,
@@ -95,6 +96,7 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
   onDuplicateBar1ToAll,
   onClearTrackSteps,
 }) => {
+  const { t, language } = useTranslation();
   const [euclidOpen, setEuclidOpen] = useState(false);
   const [euclidPulses, setEuclidPulses] = useState(5);
   const [euclidRotation, setEuclidRotation] = useState(0);
@@ -196,9 +198,14 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
                 ? 'bg-amber-400/20 text-amber-300 border-amber-400/50'
                 : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'
             }`}
-            title="Toggle between Drag-to-Extend Multi-Beat Tie Notes vs Drag-to-Paint Individual Steps"
+            title={t(
+              'seq.tieTooltip',
+              'Shift+Click or toggle Drag mode to create extended multi-beat sustaining notes without retriggering'
+            )}
           >
-            {dragExtendMode ? '↔ DRAG: EXTEND TIE' : '✏️ DRAG: PAINT STEPS'}
+            {dragExtendMode
+              ? t('seq.dragTie', '↔ DRAG: EXTEND TIE')
+              : t('seq.dragPaint', '✏️ DRAG: PAINT STEPS')}
           </button>
         </div>
 
@@ -865,7 +872,9 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
             </div>
           ) : (
             <span className="hidden xl:inline text-[9px] text-gray-400">
-              Tip: Drag rightward across steps or click 1 BEAT / 2 BEATS / 1 BAR to sustain notes without retriggering!
+              {language === 'ja'
+                ? 'ヒント: ステップを右へドラッグ、または 1 BEAT / 2 BEATS / 1 BAR を押すとタイで持続音が作れます！'
+                : 'Tip: Drag rightward across steps or click 1 BEAT / 2 BEATS / 1 BAR to sustain notes without retriggering!'}
             </span>
           )}
         </div>

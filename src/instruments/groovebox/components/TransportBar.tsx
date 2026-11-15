@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '../../../core/useTranslation';
 import type { StoredPatchRecord } from '../../../core/types';
 import {
   GROOVE_TEMPLATES,
@@ -92,6 +93,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   onExportMidi,
   onOpenCoachMarks,
 }) => {
+  const { t } = useTranslation();
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [patternPopoverOpen, setPatternPopoverOpen] = useState(false);
   const [safeHoldProgress, setSafeHoldProgress] = useState(0);
@@ -169,7 +171,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
               : 'bg-white/10 hover:bg-white/15 text-white border border-white/15'
           }`}
         >
-          <span>{isPlaying ? '■ STOP' : '▶ PLAY'}</span>
+          <span>{isPlaying ? t('transport.stop', '■ STOP') : t('transport.play', '▶ PLAY')}</span>
         </button>
 
         <button
@@ -264,7 +266,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            🎮 PLAY
+            {t('mode.beginner', '🎮 PLAY')}
           </button>
           <button
             type="button"
@@ -283,7 +285,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
                   : 'text-gray-400 hover:text-white'
             }`}
           >
-            🎛️ STUDIO {project.safeLockEnabled ? '🔒' : ''}
+            {isPro ? t('mode.pro', '🎛️ STUDIO') : `🎛️ STUDIO ${project.safeLockEnabled ? '🔒' : ''}`}
           </button>
         </div>
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from '../../../core/useTranslation';
 import type { PatchCable, SignalDomain } from '../types';
 
 export interface PatchJackButtonProps {
@@ -44,6 +45,7 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
   onRemoveSingleCable,
   onStartDaisyChain,
 }) => {
+  const { t, language } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const color = DOMAIN_COLORS[domain];
 
@@ -86,9 +88,9 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
           }
         }}
         title={`${label} (${direction.toUpperCase()} • ${domain.toUpperCase()})
-• Click to patch / connect
-• Right-click or Alt+Click for cable options (Unplug & Daisy-Chain)
-• Shift+Click to instantly unplug (${totalConnected} connected)`}
+• ${language === 'ja' ? 'クリックで結線 / パッチ接続' : 'Click to patch / connect'}
+• ${language === 'ja' ? '右クリックまたはAlt+クリックで解除・デイジーチェーン' : 'Right-click or Alt+Click for cable options (Unplug & Daisy-Chain)'}
+• ${language === 'ja' ? `Shift+クリックで即時解除（${totalConnected}本接続中）` : `Shift+Click to instantly unplug (${totalConnected} connected)`}`}
         className={`group relative flex flex-col items-center gap-0.5 px-1 py-0.5 rounded transition-transform cursor-pointer ${
           isValidTarget ? 'scale-110 animate-pulse' : 'hover:scale-105'
         }`}
@@ -147,7 +149,7 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
           {direction === 'in' && incomingCables.length > 0 && (
             <div className="space-y-1">
               <span className="text-[8px] text-sky-300 font-bold uppercase block">
-                🔗 DAISY CHAIN (PASS-THROUGH):
+                {t('jack.daisyChain', '🔗 DAISY CHAIN (PASS-THROUGH):')}
               </span>
               {incomingCables.map((c) => (
                 <button
@@ -163,7 +165,11 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
                     }
                   }}
                   className="w-full text-left px-1.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/35 border border-sky-500/40 text-sky-200 cursor-pointer flex items-center justify-between"
-                  title={`Daisy chain signal from original source (${c.from}) to another input`}
+                  title={
+                    language === 'ja'
+                      ? `元の送信元 (${c.from}) の信号を別の入力端子へ中継・分岐接続します`
+                      : `Daisy chain signal from original source (${c.from}) to another input`
+                  }
                 >
                   <span className="truncate">→ Forward {c.from}</span>
                   <span className="text-[7.5px] text-sky-400 font-bold ml-1">
@@ -177,7 +183,7 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
           {/* Unplug Options */}
           <div className="space-y-1 pt-1 border-t border-white/10">
             <span className="text-[8px] text-rose-300 font-bold uppercase block">
-              🔌 UNPLUG OPTIONS:
+              {t('jack.unplugOptions', '🔌 UNPLUG OPTIONS:')}
             </span>
             {cables
               .filter((c) => c.from === jackId || c.to === jackId)
@@ -210,7 +216,7 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
                 }}
                 className="w-full py-1 text-center font-bold rounded bg-rose-500/25 hover:bg-rose-500/40 border border-rose-500/40 text-rose-200 cursor-pointer"
               >
-                UNPLUG ALL ({totalConnected})
+                {t('jack.unplugAll', 'UNPLUG ALL')} ({totalConnected})
               </button>
             )}
           </div>

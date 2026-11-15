@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from '../../../core/useTranslation';
 import { RotaryKnob } from '../../../shared-ui/RotaryKnob';
 import { DIRECT_OUTPUT_CHANNELS } from '../presets/factoryPatches';
 import type {
@@ -43,6 +44,7 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
   onUpdateModMatrixSlot,
   onCloseDrawers,
 }) => {
+  const { t, language } = useTranslation();
   const [selectedCh, setSelectedCh] = useState<DirectOutputChannelKey>('drone');
 
   if (!mixerOpen && !modMatrixOpen) return null;
@@ -57,15 +59,17 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
       <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
         <span className="font-studio-mono text-[11px] font-bold text-sky-300 uppercase">
           {mixerOpen
-            ? '🎚️ 10-CHANNEL DIRECT OUTPUT CONSOLE & PER-OUTPUT 4-STAGE GRANULAR FX RACK'
-            : '🎛️ 6-SLOT MODULATION MATRIX'}
+            ? (language === 'ja'
+                ? '🎚️ 10チャンネル・ダイレクト出力コンソール ＆ 出力別4段グラニュラーFXラック'
+                : '🎚️ 10-CHANNEL DIRECT OUTPUT CONSOLE & PER-OUTPUT 4-STAGE GRANULAR FX RACK')
+            : (language === 'ja' ? '🎛️ 6系統変調マトリクス' : '🎛️ 6-SLOT MODULATION MATRIX')}
         </span>
         <button
           type="button"
           onClick={onCloseDrawers}
           className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 font-studio-mono text-[10px] text-gray-200 cursor-pointer"
         >
-          ✕ CLOSE DRAWER
+          {t('drawer.close', '✕ CLOSE DRAWER')}
         </button>
       </div>
 
@@ -104,6 +108,7 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
                           mute: !prev.mute,
                         }));
                       }}
+                      title={t('mixer.mute', 'Mute Channel')}
                       className={`px-1 py-0.2 rounded font-studio-mono text-[8px] font-bold cursor-pointer ${
                         cfg.mute
                           ? 'bg-rose-500 text-black'
@@ -121,6 +126,7 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
                           solo: !prev.solo,
                         }));
                       }}
+                      title={t('mixer.solo', 'Solo Channel')}
                       className={`px-1 py-0.2 rounded font-studio-mono text-[8px] font-bold cursor-pointer ${
                         cfg.solo
                           ? 'bg-amber-400 text-black'
@@ -145,7 +151,7 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
                     }
                     style={{ accentColor: c.color }}
                     className="w-full cursor-pointer"
-                    title={`${c.label} Level`}
+                    title={`${c.label} ${t('mixer.level', 'Level')}`}
                   />
 
                   <div className="w-full mt-1.5 flex flex-col items-center">
@@ -162,7 +168,11 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
                             pan: 0,
                           }));
                         }}
-                        title="Double-click or click to reset Pan to Center"
+                        title={
+                          language === 'ja'
+                            ? 'クリックでパンをセンター（中央）に戻す'
+                            : 'Double-click or click to reset Pan to Center'
+                        }
                         className={`px-1 py-0.2 rounded text-[7.5px] font-bold cursor-pointer transition-colors ${
                           Math.abs(cfg.pan) <= 0.05
                             ? 'bg-sky-400 text-black font-extrabold shadow-xs'
@@ -241,7 +251,7 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
                     : 'bg-white/10 text-gray-400'
                 }`}
               >
-                {!chCfg.fxBypass ? '● FX ACTIVE' : '○ FX BYPASSED'}
+                {!chCfg.fxBypass ? t('mixer.fxActive', '● FX ACTIVE') : t('mixer.fxBypassed', '○ FX BYPASSED')}
               </button>
             </div>
 

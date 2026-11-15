@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from './core/useTranslation';
 import { audioGuard } from './core/audioGuard';
 import { DEFAULT_INSTRUMENT_ID, INSTRUMENT_REGISTRY } from './core/registry';
 import type { InstrumentHandle } from './core/types';
@@ -18,6 +19,7 @@ function getInitialInstrumentId(): string {
 }
 
 export const App: React.FC = () => {
+  const { language, toggleLanguage, t } = useTranslation();
   const [activeInstrumentId, setActiveInstrumentId] = useState<string>(
     getInitialInstrumentId
   );
@@ -120,7 +122,7 @@ export const App: React.FC = () => {
             }}
           />
           <span className="font-studio-mono text-[10px] font-bold uppercase tracking-widest text-gray-300 truncate">
-            STUDIO SUITE // WORKSTATION
+            {t('shell.title', 'STUDIO SUITE // WORKSTATION')}
           </span>
         </div>
 
@@ -176,11 +178,15 @@ export const App: React.FC = () => {
           })}
         </nav>
 
-        {/* Right Utility Slot: Audio Isolation Telemetry & Fullscreen Toggle */}
+        {/* Right Utility Slot: Audio Isolation Telemetry, Language Toggle & Fullscreen Toggle */}
         <div className="flex items-center gap-2">
           <div
             className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#10131C] border border-white/[0.07] font-studio-mono text-[10px]"
-            title="Enforces single active AudioContext and 20ms click-free teardown on switch"
+            title={
+              language === 'ja'
+                ? '単一のAudioContextを保ち、切替時のノイズや過負荷を完全に防止します'
+                : 'Enforces single active AudioContext and 20ms click-free teardown on switch'
+            }
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
@@ -193,17 +199,35 @@ export const App: React.FC = () => {
             />
             <span className="text-gray-300 tracking-wider">
               {isSwitching
-                ? 'TEARDOWN • SWITCHING...'
+                ? t('shell.teardown', 'TEARDOWN • SWITCHING...')
                 : audioStatus.runningCount > 0
-                  ? `AUDIO ISOLATED • ${Math.round((audioStatus.sampleRate ?? 48000) / 1000)}kHz ACTIVE`
-                  : 'AUDIO ISOLATED • READY'}
+                  ? `${t('shell.audioActive', 'AUDIO ISOLATED • ACTIVE')} (${Math.round((audioStatus.sampleRate ?? 48000) / 1000)}kHz)`
+                  : t('shell.audioIsolated', 'AUDIO ISOLATED • READY')}
             </span>
           </div>
+
+          {/* Language Toggle Button [EN | 日本語] */}
+          <button
+            type="button"
+            onClick={toggleLanguage}
+            title={
+              language === 'en'
+                ? '日本語に切り替え（ツールチップ・操作説明を翻訳）'
+                : 'Switch to English (Tooltips & labels in English)'
+            }
+            className="h-6 px-2 rounded flex items-center justify-center bg-[#10131C] hover:bg-white/10 border border-white/[0.12] text-sky-300 hover:text-white font-studio-mono text-[10px] font-bold transition-all cursor-pointer shadow-xs"
+          >
+            🌐 {language === 'en' ? 'EN / 日本語' : '日本語 / EN'}
+          </button>
 
           <button
             type="button"
             onClick={toggleFullscreen}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            title={
+              isFullscreen
+                ? t('shell.fullscreen', 'Exit Fullscreen')
+                : t('shell.fullscreen', 'Enter Fullscreen')
+            }
             className="h-6 w-6 rounded flex items-center justify-center bg-[#10131C] hover:bg-white/10 border border-white/[0.08] text-gray-300 hover:text-white text-xs transition-colors cursor-pointer"
           >
             ⛶

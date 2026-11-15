@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '../../../core/useTranslation';
 import type { StoredPatchRecord } from '../../../core/types';
 import type { Aether8AudioEngine } from '../audio/Aether8AudioEngine';
 import { AETHER8_FACTORY_PATCHES } from '../presets/factoryPatches';
@@ -55,6 +56,7 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
   onExportJson,
   onImportJsonFile,
 }) => {
+  const { t } = useTranslation();
   const [vaultOpen, setVaultOpen] = useState(false);
   const scopeRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -121,11 +123,14 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
               : 'bg-white/10 hover:bg-white/15 text-white border border-white/15'
           }`}
         >
-          {isPlaying ? '■ HALT SYSTEM' : '▶ ENGAGE AETHER-8'}
+          {isPlaying ? t('transport.halt', '■ HALT SYSTEM') : t('transport.engage', '▶ ENGAGE AETHER-8')}
         </button>
 
         {/* BPM Control (30-130 BPM) */}
-        <div className="flex items-center bg-black/50 rounded-lg border border-white/10 px-1.5 h-8 gap-1">
+        <div
+          title={t('transport.bpm', 'Tempo (BPM)')}
+          className="flex items-center bg-black/50 rounded-lg border border-white/10 px-1.5 h-8 gap-1"
+        >
           <button
             type="button"
             onClick={() => onBpmChange(Math.max(30, patch.bpm - 1))}
@@ -157,11 +162,14 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
               ? 'bg-sky-500/20 border-sky-400/50 text-sky-200'
               : 'bg-amber-500/20 border-amber-400/50 text-amber-300'
           }`}
-          title="Instantly morphs between 3.1kHz Soft Silk ambient warmth and raw Harsh analog wavefolding"
+          title={t(
+            'mode.timbreTooltip',
+            'Instantly morphs between 3.1kHz Soft Silk ambient warmth and raw Harsh analog wavefolding'
+          )}
         >
           {patch.timbreMode === 'soft'
-            ? '☁️ SOFT SILK (3.1kHz)'
-            : '⚡ HARSH (WAVEFOLD)'}
+            ? t('mode.softSilk', '☁️ SOFT SILK (3.1kHz)')
+            : t('mode.harsh', '⚡ HARSH (WAVEFOLD)')}
         </button>
       </div>
 
@@ -259,7 +267,7 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
               : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/10'
           }`}
         >
-          🎚️ MIXER ({Object.keys(patch.outputMixer).length}CH)
+          {t('drawer.mixer', '🎚️ MIXER')} ({Object.keys(patch.outputMixer).length}CH)
         </button>
 
         <button
@@ -271,29 +279,32 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
               : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/10'
           }`}
         >
-          🎛️ MATRIX
+          {t('drawer.matrix', '🎛️ MATRIX')}
         </button>
 
         <button
           type="button"
           onClick={onToggleEco}
-          title="ECO Mode (caps animation FPS and disables oversampling for low-spec Chromebooks and tablets)"
+          title={t(
+            'transport.ecoTooltip',
+            'ECO Mode (caps animation FPS and disables oversampling for low-spec Chromebooks and tablets)'
+          )}
           className={`h-8 px-2.5 rounded-lg font-studio-mono text-[11px] font-bold border transition-all cursor-pointer ${
             patch.ecoMode
               ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow'
               : 'bg-white/5 hover:bg-white/10 text-gray-400 border-white/10'
           }`}
         >
-          {patch.ecoMode ? '⚡ ECO ON' : 'ECO'}
+          {patch.ecoMode ? t('transport.ecoOn', '⚡ ECO ON') : t('transport.ecoOff', 'ECO')}
         </button>
 
         <button
           type="button"
           onClick={onClearCables}
-          title="Unplug all stacked Eurorack patch cables"
+          title={t('cable.unplugTooltip', 'Unplug all stacked Eurorack patch cables')}
           className="hidden md:inline-flex h-8 px-2 items-center rounded-lg bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 font-studio-mono text-[10px] text-gray-300 hover:text-rose-200 cursor-pointer"
         >
-          🔌 UNPLUG ({patch.cables.length})
+          {t('cable.unplug', '🔌 UNPLUG')} ({patch.cables.length})
         </button>
 
         <button
@@ -305,7 +316,7 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
               : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/10'
           }`}
         >
-          {isWavRecording ? '■ STOP .WAV' : '● REC .WAV'}
+          {isWavRecording ? t('transport.stopWav', '■ STOP .WAV') : t('transport.recWav', '● REC .WAV')}
         </button>
 
         {/* Vault Save / Load Popover */}
@@ -315,7 +326,7 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
             onClick={() => setVaultOpen((v) => !v)}
             className="h-8 px-2.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 font-studio-mono text-xs font-bold text-sky-200 cursor-pointer"
           >
-            💾 VAULT
+            {t('vault.button', '💾 VAULT')}
           </button>
 
           {vaultOpen && (
@@ -344,21 +355,21 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
                   onClick={onSaveToVault}
                   className="py-1.5 rounded bg-sky-400 text-black font-bold cursor-pointer"
                 >
-                  💾 SAVE DB
+                  {t('vault.save', '💾 SAVE DB')}
                 </button>
                 <button
                   type="button"
                   onClick={onExportJson}
                   className="py-1.5 rounded bg-white/10 hover:bg-white/15 text-white cursor-pointer"
                 >
-                  ⬇ .JSON
+                  {t('vault.export', '⬇ .JSON')}
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="py-1.5 rounded bg-white/10 hover:bg-white/15 text-white cursor-pointer"
                 >
-                  📂 IMPORT
+                  {t('vault.import', '📂 IMPORT')}
                 </button>
                 <input
                   ref={fileInputRef}

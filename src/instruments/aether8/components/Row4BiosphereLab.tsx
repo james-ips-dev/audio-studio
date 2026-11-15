@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from '../../../core/useTranslation';
 import { RotaryKnob } from '../../../shared-ui/RotaryKnob';
 import type { Aether8PatchV4, SignalDomain } from '../types';
 import { PatchJackButton } from './PatchJackButton';
@@ -38,6 +39,7 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
   onRemoveSingleCable,
   onStartDaisyChain,
 }) => {
+  const { t } = useTranslation();
   const bio = patch.params.biosphere ?? {};
 
   return (
@@ -59,21 +61,21 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
             onClick={() => onApplyBioScene('calm-shore')}
             className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-500/40 text-sky-200 font-bold cursor-pointer"
           >
-            🌊 CALM SHORE
+            {t('bio.calmShore', '🌊 CALM SHORE')}
           </button>
           <button
             type="button"
             onClick={() => onApplyBioScene('night-storm')}
             className="px-2.5 py-1 rounded-lg bg-indigo-500/25 hover:bg-indigo-500/40 border border-indigo-400/40 text-indigo-200 font-bold cursor-pointer"
           >
-            ⛈️ NIGHT STORM
+            {t('bio.nightStorm', '⛈️ NIGHT STORM')}
           </button>
           <button
             type="button"
             onClick={onTriggerThunder}
             className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-bold cursor-pointer shadow"
           >
-            ⚡ STRIKE THUNDER
+            {t('bio.strike', '⚡ STRIKE THUNDER')}
           </button>
         </div>
       </div>
