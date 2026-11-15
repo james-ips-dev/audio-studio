@@ -976,12 +976,17 @@ export function createStarterProject(specId: string = 'space-mission'): Groovebo
     }
   }
 
+  const isLowSpecDevice =
+    typeof navigator !== 'undefined' &&
+    ((navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+      /Android|CrOS|Chromebook|tablet/i.test(navigator.userAgent));
+
   return {
     id: `proj_${spec.id}`,
     name: spec.name,
     updatedAt: Date.now(),
     mode: 'beginner',
-    ecoMode: false,
+    ecoMode: isLowSpecDevice,
     safeLockEnabled: false,
     bpm: spec.bpm,
     grooveTemplate: 'Straight',

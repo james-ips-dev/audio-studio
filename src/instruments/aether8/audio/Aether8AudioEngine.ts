@@ -123,6 +123,7 @@ export class Aether8AudioEngine {
   private masterTapeSaturator: WaveShaperNode | null = null;
   private masterSidechainGain: GainNode | null = null;
   private cavernReverbSend: ConvolverNode | null = null;
+  private cavernReverbEcoFb: GainNode | null = null;
   private cavernReverbReturn: GainNode | null = null;
 
   // Continuous Drone, Noise, Filter, Delay & Biosphere Nodes
@@ -278,6 +279,16 @@ export class Aether8AudioEngine {
     const cavernRet = audioCtx.createGain();
     cavernRet.gain.value = 0.35;
     cavernConv.connect(cavernRet);
+
+    // Eco Mode Cavern Delay Tank (Zero CPU FFT convolution)
+    const cavernEco = audioCtx.createDelay(0.35);
+    cavernEco.delayTime.value = 0.12;
+    const cavernEcoFb = audioCtx.createGain();
+    cavernEcoFb.gain.value = 0.45;
+    cavernEco.connect(cavernEcoFb);
+    cavernEcoFb.connect(cavernEco);
+    cavernEcoFb.connect(cavernRet);
+
     cavernRet.connect(silkFilter);
 
     sidechainBus.connect(silkFilter);
@@ -291,6 +302,7 @@ export class Aether8AudioEngine {
     this.masterTapeSaturator = tapeSat;
     this.masterAnalyser = analyser;
     this.cavernReverbSend = cavernConv;
+    this.cavernReverbEcoFb = cavernEcoFb;
     this.cavernReverbReturn = cavernRet;
 
     // Build 10 Direct Output Channel Strips with 4-Stage Granular FX
@@ -326,6 +338,7 @@ export class Aether8AudioEngine {
       }
       fader.connect(revSend);
       revSend.connect(cavernConv);
+      revSend.connect(cavernEco);
 
       directMap[chMeta.key] = {
         input,
@@ -581,6 +594,18 @@ export class Aether8AudioEngine {
         now,
         0.04
       );
+    }
+    // Manage Eco vs Studio Oversampling and Cavern Delay
+    const isEco = Boolean(p.ecoMode);
+    if (this.masterTapeSaturator) {
+      this.masterTapeSaturator.oversample = isEco ? 'none' : '2x';
+    }
+    if (this.cavernReverbEcoFb) {
+      try {
+        this.cavernReverbEcoFb.gain.setTargetAtTime(isEco ? 0.45 : 0.0, now, 0.05);
+      } catch {
+        // Safe
+      }
     }
 
     // Module 04 // Harmonic Drone Bank Voicing Ratios

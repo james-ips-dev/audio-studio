@@ -118,6 +118,8 @@ export class GrooveboxAudioEngine {
   private masterLimiter: DynamicsCompressorNode | null = null;
   private masterAnalyser: AnalyserNode | null = null;
 
+  private reverbConvolver: ConvolverNode | null = null;
+  private reverbEcoFeedback: GainNode | null = null;
   private reverbReturnGain: GainNode | null = null;
   private delayNode: DelayNode | null = null;
   private delayFeedbackGain: GainNode | null = null;
@@ -355,12 +357,24 @@ export class GrooveboxAudioEngine {
     this.masterLimiter = limiter;
     this.masterAnalyser = analyser;
 
-    // Global Algorithmic Reverb & Stereo Delay Send Buses
+    // Global Reverb Send Buses (Full Convolver in Studio, Zero-Cost Schroeder Delay in Eco)
+    const revReturn = audioCtx.createGain();
     const convolver = audioCtx.createConvolver();
     convolver.buffer = makeImpulseResponse(audioCtx, 1.9, 2.5);
-    const revReturn = audioCtx.createGain();
     convolver.connect(revReturn);
+
+    // Eco Mode Lightweight Algorithmic Reverb Tank
+    const ecoDly = audioCtx.createDelay(0.3);
+    ecoDly.delayTime.value = 0.085;
+    const ecoFb = audioCtx.createGain();
+    ecoFb.gain.value = 0.42;
+    ecoDly.connect(ecoFb);
+    ecoFb.connect(ecoDly);
+    ecoFb.connect(revReturn);
+
     revReturn.connect(comp);
+    this.reverbConvolver = convolver;
+    this.reverbEcoFeedback = ecoFb;
     this.reverbReturnGain = revReturn;
 
     const dly = audioCtx.createDelay(2.0);
@@ -417,6 +431,7 @@ export class GrooveboxAudioEngine {
       faderGain.connect(delaySendGain);
 
       reverbSendGain.connect(convolver);
+      reverbSendGain.connect(ecoDly);
       delaySendGain.connect(dly);
 
       this.trackChannels.push({
@@ -517,6 +532,25 @@ export class GrooveboxAudioEngine {
         now,
         0.03
       );
+    }
+    // Manage Eco vs Studio Reverb Paths & WaveShaper Oversampling
+    const isEco = Boolean(p.ecoMode);
+    if (this.reverbConvolver && this.reverbEcoFeedback) {
+      // In Eco mode, disconnect/zero the heavy FFT Convolver and engage the light feedback delay
+      try {
+        if (isEco) {
+          this.reverbEcoFeedback.gain.setTargetAtTime(0.42, now, 0.05);
+        } else {
+          this.reverbEcoFeedback.gain.setTargetAtTime(0.0, now, 0.05);
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+    for (const ch of this.trackChannels) {
+      if (ch.driveShaper) {
+        ch.driveShaper.oversample = isEco ? 'none' : '2x';
+      }
     }
     if (this.masterCompressor) {
       this.masterCompressor.threshold.setTargetAtTime(

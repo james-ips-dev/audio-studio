@@ -386,6 +386,11 @@ function buildFactoryPatch(
     D: createXoxPatternFromStyle('dub', 4, [16, 12, 16, 14]),
   };
 
+  const isLowSpecDevice =
+    typeof navigator !== 'undefined' &&
+    ((navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+      /Android|CrOS|Chromebook|tablet/i.test(navigator.userAgent));
+
   return {
     version: 'AETHER-8-v4',
     name,
@@ -397,7 +402,7 @@ function buildFactoryPatch(
     noiseColor: 'pink',
     filterType: 'lp24',
     activePattern: 'A',
-    ecoMode: false,
+    ecoMode: isLowSpecDevice,
     patternChainEnabled: false,
     xoxAutoFollow: true,
     xoxPatterns,
