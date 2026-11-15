@@ -844,7 +844,7 @@ export function createDefaultOutputMixer(): Record<
     kick: makeCh(0.82, 0, 0.08),
     beatBus: makeCh(0.76, 0, 0.28),
     foldFx: makeCh(0.35, -0.2, 0.42),
-    tapeDly: makeCh(0.58, 0.2, 0.62),
+    tapeDly: makeCh(0.42, 0.2, 0.45),
     biosphere: makeCh(0.48, 0, 0.52),
   };
 }
@@ -988,11 +988,11 @@ export function createDefaultParams(): Record<string, Record<string, number>> {
     },
     delay: {
       tapeTime: 0.42,
-      feedback: 0.68,
+      feedback: 0.52,
       tapeDamp: 2400,
-      wowFlut: 0.32,
+      wowFlut: 0.28,
       headPan: 0.65,
-      echoWet: 0.48,
+      echoWet: 0.38,
     },
     mixer: {
       ch1Drone: 0.78,
@@ -1127,10 +1127,10 @@ function buildFactoryPatch(
       },
       {
         id: 'c_5',
-        from: 'beats:envOut',
+        from: 'mod:lfo2Out',
         to: 'delay:fbackCv',
         type: 'cv',
-        attenuation: 0.45,
+        attenuation: 0.15,
       },
     ],
     matrixSlots: [

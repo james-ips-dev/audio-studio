@@ -432,18 +432,34 @@ export class Aether8AudioEngine {
     this.foldFxFilter = foldFilt;
     this.foldFxBusGain = foldBus;
 
-    // Module 10 // Dub Tape Delay
+    // Module 10 // Dub Tape Delay (With Dedicated Tape Saturation in the Feedback Loop)
     const dly = audioCtx.createDelay(2.5);
     const dlyDamp = audioCtx.createBiquadFilter();
     dlyDamp.type = 'lowpass';
-    const dlyFb = audioCtx.createGain();
-    const dlyWet = audioCtx.createGain();
+    dlyDamp.frequency.value = 2400;
 
-    zdfBus.connect(dly);
-    foldBus.connect(dly);
+    // Dedicated Tape Saturation curve inside the feedback loop to compress runaway repeats
+    const tapeFbShaper = audioCtx.createWaveShaper();
+    tapeFbShaper.curve = makeTubeCurve(0.42);
+
+    const dlyFb = audioCtx.createGain();
+    dlyFb.gain.value = 0.45;
+    const dlyWet = audioCtx.createGain();
+    dlyWet.gain.value = 0.35;
+
+    // Clean single feed from ZDF Filter Bus (attenuated to prevent hot signal overload)
+    const dlyInputAtten = audioCtx.createGain();
+    dlyInputAtten.gain.value = 0.45;
+    zdfBus.connect(dlyInputAtten);
+    dlyInputAtten.connect(dly);
+
+    // Feedback loop: Delay -> Lowpass Tape Damp -> Tape Saturation -> Feedback Gain -> Delay
     dly.connect(dlyDamp);
-    dlyDamp.connect(dlyFb);
+    dlyDamp.connect(tapeFbShaper);
+    tapeFbShaper.connect(dlyFb);
     dlyFb.connect(dly);
+
+    // Wet output to Channel 09 (TAPE DELAY) in the Output Mixer
     dlyDamp.connect(dlyWet);
     dlyWet.connect(directMap.tapeDly.input);
 
@@ -734,13 +750,19 @@ export class Aether8AudioEngine {
         now,
         0.04
       );
+      // Musical feedback scaling with soft saturation headroom (capped at 0.82 to avoid uncontrolled runaway)
+      const rawFeedback = prm.delay?.feedback ?? 0.55;
+      const scaledFeedback = Math.min(0.82, Math.max(0, rawFeedback * 0.88));
       this.tapeDelayFeedback.gain.setTargetAtTime(
-        Math.min(0.92, prm.delay?.feedback ?? 0.68),
+        scaledFeedback,
         now,
         0.04
       );
+      // Echo wet level scaled musically so repeats stay warm in the background
+      const rawEchoWet = prm.delay?.echoWet ?? 0.42;
+      const ch4Echo = prm.mixer?.ch4Echo ?? 0.55;
       this.tapeDelayWet.gain.setTargetAtTime(
-        (prm.delay?.echoWet ?? 0.48) * (prm.mixer?.ch4Echo ?? 0.62),
+        Math.min(0.8, rawEchoWet * ch4Echo * 0.65),
         now,
         0.04
       );
