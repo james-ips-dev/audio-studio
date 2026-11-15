@@ -1394,6 +1394,167 @@ export const STARTER_PROJECT_SPECS: StarterProjectSpec[] = [
     chordNotes: [{ step: 0, degree: 0, len: 16 }],
     arpSteps: [0, 2, 3, 5, 6, 8, 10, 11, 13, 14],
   },
+
+  // ==========================================================================
+  // 5 HIP HOP FACTORY PRESET BEATS
+  // ==========================================================================
+  {
+    id: 'hiphop-boom-bap-90s',
+    name: '90s Boom Bap Golden Era',
+    subtitle: 'MPC 58% Swing, Vinyl Rhodes & Heavy Snare Knock',
+    modeTag: 'beginner',
+    bpm: 92,
+    rootNote: 0, // C
+    scaleName: 'Dorian',
+    swing: 0.32,
+    presetIndices: [0, 0, 2, 0, 2, 0, 9, 7], // 808 Sub, Crisp Snare, Dusty Vinyl Hat, FM Wood, Funky Bass, Rhodes EP
+    kickSteps: [0, 6, 8, 11],
+    snareSteps: [4, 12],
+    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    percSteps: [3, 7, 11, 15],
+    bassNotes: [
+      { step: 0, degree: 0, len: 4 },
+      { step: 6, degree: 0, len: 2 },
+      { step: 8, degree: 2, len: 3 },
+      { step: 11, degree: 4, len: 4 },
+    ],
+    leadNotes: [
+      { step: 4, degree: 4, len: 4 },
+      { step: 10, degree: 6, len: 2 },
+      { step: 12, degree: 5, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 6 },
+      { step: 8, degree: 3, len: 6 },
+    ],
+    arpSteps: [2, 6, 10, 14],
+  },
+  {
+    id: 'hiphop-lofi-chillhop',
+    name: 'Lo-Fi Chillhop Study Beat',
+    subtitle: 'Drunken 45% Swing, Warm Tape Keys & Mellow Sub',
+    modeTag: 'beginner',
+    bpm: 84,
+    rootNote: 5, // F
+    scaleName: 'Minor Pentatonic',
+    swing: 0.45,
+    presetIndices: [8, 7, 2, 7, 9, 3, 9, 9], // Starlight LoFi Kick, Warm Brush Snare, Dusty Vinyl, Water Drop, Velvet LoFi Sub, Velvet Tape Keys, Music Box Arp
+    kickSteps: [0, 5, 8, 14],
+    snareSteps: [4, 12],
+    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    percSteps: [2, 7, 10, 15],
+    bassNotes: [
+      { step: 0, degree: 0, len: 5 },
+      { step: 5, degree: 2, len: 3 },
+      { step: 8, degree: 3, len: 6 },
+      { step: 14, degree: 4, len: 2 },
+    ],
+    leadNotes: [
+      { step: 0, degree: 2, len: 4 },
+      { step: 6, degree: 4, len: 4 },
+      { step: 12, degree: 1, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 2, len: 8 },
+    ],
+    arpSteps: [0, 3, 6, 9, 12, 15],
+  },
+  {
+    id: 'hiphop-trap-808-heat',
+    name: 'Trap 808 Night Heat',
+    subtitle: 'Sliding Sub Bass, Rapidfire Hats & Dark Minor Bell',
+    modeTag: 'pro',
+    bpm: 140,
+    rootNote: 1, // C#
+    scaleName: 'Harmonic Minor',
+    swing: 0.05,
+    presetIndices: [0, 4, 16, 4, 6, 9, 1, 0], // 808 Sub Boom, 808 Clap, Crisp Trap Fast Hat, Jungle 808 Glide Bass, Dreamy Bell Lead
+    kickSteps: [0, 7, 10],
+    snareSteps: [4, 12],
+    hatSteps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    percSteps: [3, 9, 11, 14],
+    bassNotes: [
+      { step: 0, degree: 0, len: 7 },
+      { step: 7, degree: 2, len: 3 },
+      { step: 10, degree: 5, len: 6 },
+    ],
+    leadNotes: [
+      { step: 0, degree: 4, len: 4 },
+      { step: 4, degree: 3, len: 4 },
+      { step: 8, degree: 2, len: 4 },
+      { step: 12, degree: 6, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 4, len: 8 },
+    ],
+    arpSteps: [0, 4, 8, 12],
+  },
+  {
+    id: 'hiphop-west-coast-gfunk',
+    name: 'West Coast G-Funk Lowrider',
+    subtitle: 'Classic Sine Whistle Lead, Punchy Kick & Syncopated Bass',
+    modeTag: 'beginner',
+    bpm: 96,
+    rootNote: 2, // D
+    scaleName: 'Minor Pentatonic',
+    swing: 0.22,
+    presetIndices: [1, 4, 0, 3, 2, 2, 0, 0], // 909 Punch, 808 Clap, 909 Hat, Funky FM Bass, Laser Whistle Lead, Juno Chorus Pad
+    kickSteps: [0, 3, 6, 8, 14],
+    snareSteps: [4, 12],
+    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    percSteps: [4, 7, 12, 15],
+    bassNotes: [
+      { step: 0, degree: 0, len: 3 },
+      { step: 3, degree: 0, len: 3 },
+      { step: 6, degree: 2, len: 2 },
+      { step: 8, degree: 3, len: 4 },
+      { step: 14, degree: 4, len: 2 },
+    ],
+    leadNotes: [
+      { step: 0, degree: 4, len: 6 },
+      { step: 8, degree: 3, len: 4 },
+      { step: 12, degree: 4, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 8 },
+      { step: 8, degree: 3, len: 8 },
+    ],
+    arpSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+  },
+  {
+    id: 'hiphop-underground-dilla-swing',
+    name: 'Dilla MPC Drunken Soul',
+    subtitle: 'Unquantized Loose MPC Swing, Warm Sub & Smoky Keys',
+    modeTag: 'pro',
+    bpm: 88,
+    rootNote: 10, // A#
+    scaleName: 'Dorian',
+    swing: 0.48,
+    presetIndices: [6, 0, 14, 0, 4, 4, 9, 7], // Retro CR-78, Crisp Snare, Tape Saturated Hat, Funky Bass, Rhodes EP
+    kickSteps: [0, 5, 8, 10, 13],
+    snareSteps: [4, 12],
+    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    percSteps: [1, 6, 9, 14],
+    bassNotes: [
+      { step: 0, degree: 0, len: 5 },
+      { step: 5, degree: 2, len: 3 },
+      { step: 8, degree: 3, len: 2 },
+      { step: 10, degree: 4, len: 3 },
+      { step: 13, degree: 0, len: 3 },
+    ],
+    leadNotes: [
+      { step: 2, degree: 4, len: 4 },
+      { step: 8, degree: 2, len: 4 },
+      { step: 12, degree: 0, len: 4 },
+    ],
+    chordNotes: [
+      { step: 0, degree: 0, len: 6 },
+      { step: 8, degree: 2, len: 6 },
+    ],
+    arpSteps: [1, 3, 5, 7, 9, 11, 13, 15],
+  },
 ];
 
 export function createStarterProject(specId: string = 'space-mission'): GrooveboxProject {

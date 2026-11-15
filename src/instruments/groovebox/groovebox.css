@@ -12,6 +12,23 @@
   color: #F3F4F6;
 }
 
+/* Ensure all dropdown select elements, optgroups, and options in Groovebox are high contrast & light text */
+.inst-groovebox select {
+  color: #F9FAFB !important;
+  background-color: #161A24 !important;
+}
+
+.inst-groovebox select option,
+.inst-groovebox select optgroup {
+  color: #F3F4F6 !important;
+  background-color: #1A1F2C !important;
+}
+
+.inst-groovebox select optgroup {
+  color: #F472B6 !important;
+  font-weight: bold;
+}
+
 .inst-groovebox ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
