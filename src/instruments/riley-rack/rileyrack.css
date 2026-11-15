@@ -1,0 +1,40 @@
+/* ==========================================================================
+   PRODUCT 3: RILEYRACK 800 — SCOPED STYLES (.inst-rileyrack)
+   ========================================================================== */
+
+.inst-rileyrack {
+  --rr-bg-chassis: #080A0F;
+  --rr-bg-module: #10141E;
+  --rr-accent: #F59E0B;
+  --rr-teal: #10B981;
+  --rr-sky: #38BDF8;
+  background-color: var(--rr-bg-chassis);
+  color: #E5E7EB;
+}
+
+.inst-rileyrack ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.inst-rileyrack ::-webkit-scrollbar-track {
+  background: #080A0F;
+}
+
+.inst-rileyrack ::-webkit-scrollbar-thumb {
+  background: #1F2937;
+  border-radius: 3px;
+}
+
+.inst-rileyrack ::-webkit-scrollbar-thumb:hover {
+  background: #F59E0B;
+}
+
+/* Section 6 Eco Mode UI Optimization:
+   Simplified flat CSS borders (disables GPU-expensive box-shadow & filter blurs on low-spec devices) */
+.inst-rileyrack-eco *,
+.inst-rileyrack-eco *::before,
+.inst-rileyrack-eco *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}

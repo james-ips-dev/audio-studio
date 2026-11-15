@@ -262,6 +262,136 @@ const TRANSLATIONS: Record<string, Record<Language, string>> = {
     en: '○ FX BYPASSED',
     ja: '○ バイパス中',
   },
+
+  // RileyRack 800
+  'riley.run': {
+    en: '▶ RUN RACK',
+    ja: '▶ ラック始動',
+  },
+  'riley.stop': {
+    en: '■ STOP RACK',
+    ja: '■ ラック停止',
+  },
+  'riley.save': {
+    en: '💾 SAVE',
+    ja: '💾 保存',
+  },
+  'riley.saveAs': {
+    en: 'SAVE AS',
+    ja: '別名保存',
+  },
+  'riley.delete': {
+    en: 'DEL',
+    ja: '削除',
+  },
+  'riley.export': {
+    en: '⬇ EXPORT',
+    ja: '⬇ 書き出し',
+  },
+  'riley.import': {
+    en: '📂 IMPORT',
+    ja: '📂 読み込み',
+  },
+  'riley.justInt': {
+    en: 'JUST INT (PURE)',
+    ja: '純正律 (JI)',
+  },
+  'riley.tet12': {
+    en: '12-TET (EQUAL)',
+    ja: '12平均律 (TET)',
+  },
+  'riley.hideCables': {
+    en: '🙈 HIDE CABLES',
+    ja: '🙈 ケーブル非表示',
+  },
+  'riley.showCables': {
+    en: '🔌 CABLES',
+    ja: '🔌 ケーブル表示',
+  },
+  'riley.clearCables': {
+    en: 'CLEAR',
+    ja: '全解除',
+  },
+  'riley.mixer': {
+    en: '🎚️ MIXER',
+    ja: '🎚️ 8CHミキサー',
+  },
+  'riley.masterClockTitle': {
+    en: '01 // MASTER CLOCK, QUANTIZER & PATCH MANAGER',
+    ja: '01 // マスタークロック・純正律クオンタイザー＆パッチ管理',
+  },
+  'riley.evolveTitle': {
+    en: '02 // GENERATIVE EVOLVE ENGINE',
+    ja: '02 // ジェネレーティブ進化（EVOLVE）エンジン',
+  },
+  'riley.evolveAutoOn': {
+    en: 'AUTO EVOLVE: ON',
+    ja: '自動進化: ON',
+  },
+  'riley.evolveAutoOff': {
+    en: 'AUTO EVOLVE: OFF',
+    ja: '自動進化: OFF',
+  },
+  'riley.morphNow': {
+    en: '✨ MORPH NOW',
+    ja: '✨ 即時モーフ変異',
+  },
+  'riley.pitchDrift': {
+    en: 'PITCH DRIFT',
+    ja: 'ピッチ変異',
+  },
+  'riley.rhythmLen': {
+    en: 'RHYTHM / LEN',
+    ja: '周期長変異',
+  },
+  'riley.timbreMorph': {
+    en: 'TIMBRE MORPH',
+    ja: '音色モーフ',
+  },
+  'riley.tapeLoopTitle': {
+    en: '03 // TIME LAG ACCUMULATOR // MAGNETIC TAPE LOOP',
+    ja: '03 // タイムラグ・アキュムレータ // 磁気テープ遅延ループ',
+  },
+  'riley.clearTape': {
+    en: '🧹 CLEAR TAPE',
+    ja: '🧹 テープ消去',
+  },
+  'riley.seqBankTitle': {
+    en: '8-CHANNEL POLYMETRIC SEQUENCER BANK (4×2 EURORACK GRID)',
+    ja: '8チャンネル・ポリメトリック・シーケンサー・バンク（4×2グリッド）',
+  },
+  'riley.voiceEditorTitle': {
+    en: '04 // VOICE SOUND DESIGNER (ORIGINAL RILEY + FULL SYNTH SUITE)',
+    ja: '04 // ボイス・サウンドデザイナー（RILEY + フルシンセ・スイート）',
+  },
+  'riley.biosphereTitle': {
+    en: '05 // BIOSPHERE // SYNCED NATURE SOUNDSCAPE',
+    ja: '05 // バイオスフィア // クロック同期・自然環境音モジュール',
+  },
+  'riley.clkSync': {
+    en: '⏱ CLK SYNC',
+    ja: '⏱ クロック同期',
+  },
+  'riley.freeRun': {
+    en: '∞ FREE RUN',
+    ja: '∞ フリー動作',
+  },
+  'riley.bioActive': {
+    en: '🌿 ACTIVE',
+    ja: '🌿 環境音ON',
+  },
+  'riley.bioMuted': {
+    en: '🔇 MUTED',
+    ja: '🔇 ミュート中',
+  },
+  'riley.testThunder': {
+    en: '⚡ TEST THUNDER',
+    ja: '⚡ 遠雷テスト発火',
+  },
+  'riley.auditionNote': {
+    en: '🔊 AUDITION VOICE',
+    ja: '🔊 ボイス試聴',
+  },
 };
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
