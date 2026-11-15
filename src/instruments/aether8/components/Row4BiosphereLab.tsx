@@ -37,7 +37,7 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
             12 // BIOSPHERE &amp; WEATHER SYNTHESIS LAB (5-ENGINE NATURE GENERATOR)
           </span>
           <span className="text-[10px] font-studio-mono text-gray-500 ml-2">
-            RAIN • FLOWING WATER • LAPPING WAVES • HOWLING WIND • THUNDER
+            RAIN • WATER • WAVES • WIND • THUNDER (INDIVIDUAL PREAMPS + BIO MASTER)
           </span>
         </div>
 
@@ -66,16 +66,40 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
         </div>
       </div>
 
-      {/* 8 Nature Engine Rotary Controls */}
-      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 place-items-center py-1 bg-black/30 rounded-lg border border-white/5">
+      {/* 14 Biosphere Controls: Master, Pre-Amps & Nature Parameters */}
+      <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-14 gap-1.5 place-items-center py-2 bg-black/30 rounded-lg border border-white/5">
+        <RotaryKnob
+          label="BIO MASTER"
+          size="sm"
+          value={bio.bioMaster ?? 1.0}
+          min={0}
+          max={2.0}
+          step={0.01}
+          defaultValue={1.0}
+          accentColor="#10B981"
+          formatValue={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => onUpdateModuleParam('biosphere', 'bioMaster', v)}
+        />
+        <RotaryKnob
+          label="RAIN PRE"
+          size="sm"
+          value={bio.rainPre ?? 1.5}
+          min={0.5}
+          max={4.0}
+          step={0.1}
+          defaultValue={1.5}
+          accentColor="#38BDF8"
+          formatValue={(v) => `${v.toFixed(1)}x`}
+          onChange={(v) => onUpdateModuleParam('biosphere', 'rainPre', v)}
+        />
         <RotaryKnob
           label="RAIN LVL"
           size="sm"
-          value={bio.rainLvl ?? 0.35}
+          value={bio.rainLvl ?? 0.65}
           min={0}
           max={1}
           step={0.01}
-          defaultValue={0.35}
+          defaultValue={0.65}
           accentColor="#38BDF8"
           formatValue={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdateModuleParam('biosphere', 'rainLvl', v)}
@@ -93,13 +117,25 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
           onChange={(v) => onUpdateModuleParam('biosphere', 'rainSize', v)}
         />
         <RotaryKnob
+          label="WATER PRE"
+          size="sm"
+          value={bio.waterPre ?? 1.5}
+          min={0.5}
+          max={4.0}
+          step={0.1}
+          defaultValue={1.5}
+          accentColor="#0284C7"
+          formatValue={(v) => `${v.toFixed(1)}x`}
+          onChange={(v) => onUpdateModuleParam('biosphere', 'waterPre', v)}
+        />
+        <RotaryKnob
           label="WATER FLOW"
           size="sm"
-          value={bio.waterFlow ?? 0.28}
+          value={bio.waterFlow ?? 0.55}
           min={0}
           max={1}
           step={0.01}
-          defaultValue={0.28}
+          defaultValue={0.55}
           accentColor="#0284C7"
           formatValue={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdateModuleParam('biosphere', 'waterFlow', v)}
@@ -117,13 +153,25 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
           onChange={(v) => onUpdateModuleParam('biosphere', 'brookBub', v)}
         />
         <RotaryKnob
+          label="WAVES PRE"
+          size="sm"
+          value={bio.wavesPre ?? 1.5}
+          min={0.5}
+          max={4.0}
+          step={0.1}
+          defaultValue={1.5}
+          accentColor="#34D399"
+          formatValue={(v) => `${v.toFixed(1)}x`}
+          onChange={(v) => onUpdateModuleParam('biosphere', 'wavesPre', v)}
+        />
+        <RotaryKnob
           label="WAVES LVL"
           size="sm"
-          value={bio.wavesLvl ?? 0.45}
+          value={bio.wavesLvl ?? 0.70}
           min={0}
           max={1}
           step={0.01}
-          defaultValue={0.45}
+          defaultValue={0.70}
           accentColor="#34D399"
           formatValue={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdateModuleParam('biosphere', 'wavesLvl', v)}
@@ -141,16 +189,40 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
           onChange={(v) => onUpdateModuleParam('biosphere', 'tideSpeed', v)}
         />
         <RotaryKnob
+          label="WIND PRE"
+          size="sm"
+          value={bio.windPre ?? 1.5}
+          min={0.5}
+          max={4.0}
+          step={0.1}
+          defaultValue={1.5}
+          accentColor="#A855F7"
+          formatValue={(v) => `${v.toFixed(1)}x`}
+          onChange={(v) => onUpdateModuleParam('biosphere', 'windPre', v)}
+        />
+        <RotaryKnob
           label="WIND GUST"
           size="sm"
-          value={bio.windGust ?? 0.32}
+          value={bio.windGust ?? 0.55}
           min={0}
           max={1}
           step={0.01}
-          defaultValue={0.32}
+          defaultValue={0.55}
           accentColor="#A855F7"
           formatValue={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdateModuleParam('biosphere', 'windGust', v)}
+        />
+        <RotaryKnob
+          label="THNDR PRE"
+          size="sm"
+          value={bio.thndrPre ?? 1.5}
+          min={0.5}
+          max={4.0}
+          step={0.1}
+          defaultValue={1.5}
+          accentColor="#F59E0B"
+          formatValue={(v) => `${v.toFixed(1)}x`}
+          onChange={(v) => onUpdateModuleParam('biosphere', 'thndrPre', v)}
         />
         <RotaryKnob
           label="STORM PROB"

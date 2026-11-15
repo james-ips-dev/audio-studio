@@ -503,7 +503,13 @@ export class Aether8AudioEngine {
   private initBiosphereLab(ctx: AudioContext, destination: AudioNode): void {
     if (!this.noiseBuffers) return;
     const bioBus = ctx.createGain();
-    bioBus.connect(destination);
+    bioBus.gain.value = 1.0;
+
+    // Dedicated Biosphere Warm Saturation / Soft Limiter curve to allow high gain without harsh digital clipping
+    const bioLimiter = ctx.createWaveShaper();
+    bioLimiter.curve = makeTubeCurve(0.28);
+    bioBus.connect(bioLimiter);
+    bioLimiter.connect(destination);
     this.bioMasterBus = bioBus;
 
     // 1. Rain Engine (Pink noise highpassed)
@@ -740,30 +746,50 @@ export class Aether8AudioEngine {
       );
     }
 
-    // Module 12 // Biosphere Lab Levels
+    // Module 12 // Biosphere Lab Levels, Pre-Amps & Bio Master
+    if (this.bioMasterBus) {
+      const bioMaster = prm.biosphere?.bioMaster ?? 1.0;
+      this.bioMasterBus.gain.setTargetAtTime(
+        Math.min(2.5, Math.max(0, bioMaster * 1.35)),
+        now,
+        0.05
+      );
+    }
+
     if (
       this.bioRainGain &&
       this.bioWaterGain &&
       this.bioWavesGain &&
       this.bioWindGain
     ) {
+      const rainLvl = prm.biosphere?.rainLvl ?? 0.65;
+      const rainPre = prm.biosphere?.rainPre ?? 1.5;
       this.bioRainGain.gain.setTargetAtTime(
-        (prm.biosphere?.rainLvl ?? 0.35) * 0.22,
+        Math.min(2.5, rainLvl * rainPre * 0.75),
         now,
         0.05
       );
+
+      const waterFlow = prm.biosphere?.waterFlow ?? 0.55;
+      const waterPre = prm.biosphere?.waterPre ?? 1.5;
       this.bioWaterGain.gain.setTargetAtTime(
-        (prm.biosphere?.waterFlow ?? 0.28) * 0.25,
+        Math.min(2.5, waterFlow * waterPre * 0.85),
         now,
         0.05
       );
+
+      const wavesLvl = prm.biosphere?.wavesLvl ?? 0.70;
+      const wavesPre = prm.biosphere?.wavesPre ?? 1.5;
       this.bioWavesGain.gain.setTargetAtTime(
-        (prm.biosphere?.wavesLvl ?? 0.45) * 0.26,
+        Math.min(2.5, wavesLvl * wavesPre * 0.90),
         now,
         0.05
       );
+
+      const windGust = prm.biosphere?.windGust ?? 0.55;
+      const windPre = prm.biosphere?.windPre ?? 1.5;
       this.bioWindGain.gain.setTargetAtTime(
-        (prm.biosphere?.windGust ?? 0.32) * 0.18,
+        Math.min(2.5, windGust * windPre * 0.65),
         now,
         0.05
       );
@@ -1626,8 +1652,9 @@ export class Aether8AudioEngine {
     lp.frequency.exponentialRampToValueAtTime(65, t + 2.4);
 
     const vca = ctx.createGain();
+    const thndrPre = this.patchRef.params.biosphere?.thndrPre ?? 1.5;
     vca.gain.setValueAtTime(0.0001, t);
-    vca.gain.linearRampToValueAtTime(0.75, t + 0.04);
+    vca.gain.linearRampToValueAtTime(Math.min(1.5, 0.95 * thndrPre), t + 0.04);
     vca.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
 
     src.connect(lp);
