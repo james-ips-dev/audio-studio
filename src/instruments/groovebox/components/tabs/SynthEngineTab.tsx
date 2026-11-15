@@ -9,10 +9,12 @@ import {
 import type {
   FilterType,
   GrooveboxProject,
+  LfoWave,
   ModMatrixDestination,
   ModMatrixSource,
   OscillatorWave,
   ProSynthConfig,
+  Subdivision,
   TrackConfig,
   VoiceMode,
 } from '../../types';
@@ -41,6 +43,8 @@ const WAVEFORMS: OscillatorWave[] = [
   'supersaw',
 ];
 const FILTER_TYPES: FilterType[] = ['lp12', 'lp24', 'bp12', 'hp12', 'notch'];
+const LFO_WAVES: LfoWave[] = ['sine', 'triangle', 'saw', 'square', 'sample-hold'];
+const LFO_DIVISIONS: Subdivision[] = ['1/4', '1/8', '1/16', '1/32', '1/4T', '1/8T', '1/16T', '1/8D', '1/16D'];
 const VOICE_MODES: VoiceMode[] = ['mono', 'poly', 'unison'];
 const MOD_SOURCES: ModMatrixSource[] = [
   'lfo1',
@@ -648,47 +652,123 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
           </div>
         </div>
 
-        {/* Osc 1 & Osc 2 Wave Selectors */}
+        {/* Osc 1 & Osc 2 Wave & Frequency Coarse/Fine Selectors */}
         <div className="grid grid-cols-2 gap-2 my-1.5 text-[10px] font-studio-mono">
-          <div className="flex items-center justify-between bg-black/35 px-2 py-1 rounded border border-white/5">
-            <span className="text-gray-400">OSC 1:</span>
-            <select
-              value={s.osc1.wave}
-              onChange={(e) => {
-                const wave = e.target.value as OscillatorWave;
-                onUpdateTrackSynth(track.index, (prev) => ({
-                  ...prev,
-                  osc1: { ...prev.osc1, wave },
-                }));
-              }}
-              className="bg-transparent text-sky-300 font-bold cursor-pointer"
-            >
-              {WAVEFORMS.map((w) => (
-                <option key={w} value={w} className="bg-[#12151E]">
-                  {w.toUpperCase()}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-1 bg-black/35 px-2 py-1.5 rounded border border-white/5">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">OSC 1:</span>
+              <select
+                value={s.osc1.wave}
+                onChange={(e) => {
+                  const wave = e.target.value as OscillatorWave;
+                  onUpdateTrackSynth(track.index, (prev) => ({
+                    ...prev,
+                    osc1: { ...prev.osc1, wave },
+                  }));
+                }}
+                className="bg-transparent text-sky-300 font-bold cursor-pointer"
+              >
+                {WAVEFORMS.map((w) => (
+                  <option key={w} value={w} className="bg-[#12151E]">
+                    {w.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center justify-between gap-1 text-[9px] text-gray-400 pt-0.5 border-t border-white/5">
+              <span>COARSE: {s.osc1.coarse >= 0 ? `+${s.osc1.coarse}` : s.osc1.coarse}st</span>
+              <input
+                type="range"
+                min={-24}
+                max={24}
+                step={1}
+                value={s.osc1.coarse}
+                onChange={(e) => {
+                  const coarse = Number(e.target.value);
+                  onUpdateTrackSynth(track.index, (prev) => ({
+                    ...prev,
+                    osc1: { ...prev.osc1, coarse },
+                  }));
+                }}
+                className="w-20 accent-sky-400 cursor-pointer"
+                title={`Osc 1 Pitch: ${s.osc1.coarse} semitones`}
+              />
+              <span>FINE: {s.osc1.fine >= 0 ? `+${s.osc1.fine}` : s.osc1.fine}c</span>
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                value={s.osc1.fine}
+                onChange={(e) => {
+                  const fine = Number(e.target.value);
+                  onUpdateTrackSynth(track.index, (prev) => ({
+                    ...prev,
+                    osc1: { ...prev.osc1, fine },
+                  }));
+                }}
+                className="w-16 accent-sky-400 cursor-pointer"
+                title={`Osc 1 Fine: ${s.osc1.fine} cents`}
+              />
+            </div>
           </div>
-          <div className="flex items-center justify-between bg-black/35 px-2 py-1 rounded border border-white/5">
-            <span className="text-gray-400">OSC 2:</span>
-            <select
-              value={s.osc2.wave}
-              onChange={(e) => {
-                const wave = e.target.value as OscillatorWave;
-                onUpdateTrackSynth(track.index, (prev) => ({
-                  ...prev,
-                  osc2: { ...prev.osc2, wave },
-                }));
-              }}
-              className="bg-transparent text-amber-300 font-bold cursor-pointer"
-            >
-              {WAVEFORMS.map((w) => (
-                <option key={w} value={w} className="bg-[#12151E]">
-                  {w.toUpperCase()}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-1 bg-black/35 px-2 py-1.5 rounded border border-white/5">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">OSC 2:</span>
+              <select
+                value={s.osc2.wave}
+                onChange={(e) => {
+                  const wave = e.target.value as OscillatorWave;
+                  onUpdateTrackSynth(track.index, (prev) => ({
+                    ...prev,
+                    osc2: { ...prev.osc2, wave },
+                  }));
+                }}
+                className="bg-transparent text-amber-300 font-bold cursor-pointer"
+              >
+                {WAVEFORMS.map((w) => (
+                  <option key={w} value={w} className="bg-[#12151E]">
+                    {w.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center justify-between gap-1 text-[9px] text-gray-400 pt-0.5 border-t border-white/5">
+              <span>COARSE: {s.osc2.coarse >= 0 ? `+${s.osc2.coarse}` : s.osc2.coarse}st</span>
+              <input
+                type="range"
+                min={-24}
+                max={24}
+                step={1}
+                value={s.osc2.coarse}
+                onChange={(e) => {
+                  const coarse = Number(e.target.value);
+                  onUpdateTrackSynth(track.index, (prev) => ({
+                    ...prev,
+                    osc2: { ...prev.osc2, coarse },
+                  }));
+                }}
+                className="w-20 accent-amber-400 cursor-pointer"
+                title={`Osc 2 Pitch: ${s.osc2.coarse} semitones`}
+              />
+              <span>FINE: {s.osc2.fine >= 0 ? `+${s.osc2.fine}` : s.osc2.fine}c</span>
+              <input
+                type="range"
+                min={-50}
+                max={50}
+                step={1}
+                value={s.osc2.fine}
+                onChange={(e) => {
+                  const fine = Number(e.target.value);
+                  onUpdateTrackSynth(track.index, (prev) => ({
+                    ...prev,
+                    osc2: { ...prev.osc2, fine },
+                  }));
+                }}
+                className="w-16 accent-amber-400 cursor-pointer"
+                title={`Osc 2 Fine: ${s.osc2.fine} cents`}
+              />
+            </div>
           </div>
         </div>
 
@@ -978,8 +1058,190 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
         </div>
       </div>
 
-      {/* Module 5 & 6: 8-Slot Visual Modulation Matrix */}
-      <div className="lg:col-span-3 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      {/* Module 5 & 6: Dual LFO Generators & 8-Slot Visual Modulation Matrix */}
+      <div className="lg:col-span-3 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between gap-1.5">
+        {/* Dual LFO Generator Strip */}
+        <div className="border-b border-white/10 pb-1.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-studio-mono text-[10px] font-bold uppercase text-indigo-400">
+              DUAL LFO GENERATORS
+            </span>
+            <span className="text-[9px] font-studio-mono text-gray-400">
+              LFO 1 &amp; LFO 2
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 font-studio-mono text-[9px]">
+            {/* LFO 1 Control Box */}
+            <div className="bg-black/40 p-1.5 rounded border border-white/5 space-y-1">
+              <div className="flex items-center justify-between text-indigo-300 font-bold">
+                <span>LFO 1</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateTrackSynth(track.index, (prev) => ({
+                      ...prev,
+                      lfo1: { ...prev.lfo1, sync: !prev.lfo1.sync },
+                    }))
+                  }
+                  className={`px-1 py-0.2 rounded text-[8px] border cursor-pointer ${
+                    s.lfo1.sync
+                      ? 'bg-indigo-500/30 text-indigo-200 border-indigo-400'
+                      : 'bg-white/5 text-gray-400 border-white/10'
+                  }`}
+                >
+                  {s.lfo1.sync ? 'SYNC' : 'FREE'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">WAVE:</span>
+                <select
+                  value={s.lfo1.wave}
+                  onChange={(e) => {
+                    const wave = e.target.value as LfoWave;
+                    onUpdateTrackSynth(track.index, (prev) => ({
+                      ...prev,
+                      lfo1: { ...prev.lfo1, wave },
+                    }));
+                  }}
+                  className="bg-transparent text-indigo-200 font-bold cursor-pointer"
+                >
+                  {LFO_WAVES.map((w) => (
+                    <option key={w} value={w} className="bg-[#12151E]">
+                      {w.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">{s.lfo1.sync ? 'DIV:' : 'RATE:'}</span>
+                {s.lfo1.sync ? (
+                  <select
+                    value={s.lfo1.rateDiv}
+                    onChange={(e) => {
+                      const rateDiv = e.target.value as Subdivision;
+                      onUpdateTrackSynth(track.index, (prev) => ({
+                        ...prev,
+                        lfo1: { ...prev.lfo1, rateDiv },
+                      }));
+                    }}
+                    className="bg-transparent text-indigo-200 font-bold cursor-pointer"
+                  >
+                    {LFO_DIVISIONS.map((d) => (
+                      <option key={d} value={d} className="bg-[#12151E]">
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={20}
+                      step={0.1}
+                      value={s.lfo1.rateHz}
+                      onChange={(e) => {
+                        const rateHz = Number(e.target.value);
+                        onUpdateTrackSynth(track.index, (prev) => ({
+                          ...prev,
+                          lfo1: { ...prev.lfo1, rateHz },
+                        }));
+                      }}
+                      className="w-14 accent-indigo-400 cursor-pointer"
+                    />
+                    <span className="text-indigo-200 text-[8px]">{s.lfo1.rateHz.toFixed(1)}Hz</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* LFO 2 Control Box */}
+            <div className="bg-black/40 p-1.5 rounded border border-white/5 space-y-1">
+              <div className="flex items-center justify-between text-purple-300 font-bold">
+                <span>LFO 2</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateTrackSynth(track.index, (prev) => ({
+                      ...prev,
+                      lfo2: { ...prev.lfo2, sync: !prev.lfo2.sync },
+                    }))
+                  }
+                  className={`px-1 py-0.2 rounded text-[8px] border cursor-pointer ${
+                    s.lfo2.sync
+                      ? 'bg-purple-500/30 text-purple-200 border-purple-400'
+                      : 'bg-white/5 text-gray-400 border-white/10'
+                  }`}
+                >
+                  {s.lfo2.sync ? 'SYNC' : 'FREE'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">WAVE:</span>
+                <select
+                  value={s.lfo2.wave}
+                  onChange={(e) => {
+                    const wave = e.target.value as LfoWave;
+                    onUpdateTrackSynth(track.index, (prev) => ({
+                      ...prev,
+                      lfo2: { ...prev.lfo2, wave },
+                    }));
+                  }}
+                  className="bg-transparent text-purple-200 font-bold cursor-pointer"
+                >
+                  {LFO_WAVES.map((w) => (
+                    <option key={w} value={w} className="bg-[#12151E]">
+                      {w.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">{s.lfo2.sync ? 'DIV:' : 'RATE:'}</span>
+                {s.lfo2.sync ? (
+                  <select
+                    value={s.lfo2.rateDiv}
+                    onChange={(e) => {
+                      const rateDiv = e.target.value as Subdivision;
+                      onUpdateTrackSynth(track.index, (prev) => ({
+                        ...prev,
+                        lfo2: { ...prev.lfo2, rateDiv },
+                      }));
+                    }}
+                    className="bg-transparent text-purple-200 font-bold cursor-pointer"
+                  >
+                    {LFO_DIVISIONS.map((d) => (
+                      <option key={d} value={d} className="bg-[#12151E]">
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={20}
+                      step={0.1}
+                      value={s.lfo2.rateHz}
+                      onChange={(e) => {
+                        const rateHz = Number(e.target.value);
+                        onUpdateTrackSynth(track.index, (prev) => ({
+                          ...prev,
+                          lfo2: { ...prev.lfo2, rateHz },
+                        }));
+                      }}
+                      className="w-14 accent-purple-400 cursor-pointer"
+                    />
+                    <span className="text-purple-200 text-[8px]">{s.lfo2.rateHz.toFixed(1)}Hz</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 8-Slot Visual Modulation Matrix */}
         <div className="flex items-center justify-between border-b border-white/10 pb-1">
           <span className="font-studio-mono text-[10px] font-bold uppercase text-amber-400">
             8-SLOT MOD MATRIX
@@ -989,7 +1251,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-1 my-1 max-h-[165px] pr-0.5">
+        <div className="flex-1 overflow-y-auto space-y-1 my-0.5 max-h-[120px] pr-0.5">
           {s.modMatrix.slice(0, 5).map((slot) => (
             <div
               key={slot.id}
