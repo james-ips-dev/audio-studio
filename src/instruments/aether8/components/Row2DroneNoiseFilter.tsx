@@ -143,7 +143,7 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
       {/* ====================================================================
           03 // EUCLIDEAN & TIME DIVIDER
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-seq p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-sky-400">
             03 // EUCLIDEAN &amp; CLOCK
@@ -246,7 +246,7 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
       {/* ====================================================================
           04 // HARMONIC DRONE BANK (4-VCO Analog Swarm + Dual Subs + 20 Presets)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-synth p-2.5 flex flex-col justify-between">
         <div className="flex flex-col gap-1 pb-1.5 border-b border-white/10">
           <div className="flex items-center justify-between">
             <span className="font-studio-mono text-[10px] font-bold text-sky-400">
@@ -413,7 +413,7 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
       {/* ====================================================================
           05 // TEXTURA NOISE LAB (Multi-Spectrum Noise & Vinyl Dust)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-bio p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-purple-400">
             05 // TEXTURA NOISE LAB
@@ -540,7 +540,7 @@ export const Row2DroneNoiseFilter: React.FC<Row2DroneNoiseFilterProps> = ({
       {/* ====================================================================
           06 // ZDF ANALOG FILTER (Multimode Ladder Filter & Tube Drive)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-filter p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-amber-400">
             06 // ZDF ANALOG FILTER

@@ -25,6 +25,12 @@ export interface InstrumentHandle {
    * Returns true if the instrument's AudioContext is currently powered on and running.
    */
   isAudioActive: () => boolean;
+
+  /**
+   * Emergency All Notes Off / Audio Kill Switch (!PANIC).
+   * Silences all active voices, flushes delay/reverb feedback loops, and halts runaway audio.
+   */
+  panic?: () => void;
 }
 
 /**

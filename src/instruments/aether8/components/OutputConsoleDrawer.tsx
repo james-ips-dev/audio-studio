@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from '../../../core/useTranslation';
+import { BipolarPanSlider } from '../../../shared-ui/BipolarPanSlider';
 import { RotaryKnob } from '../../../shared-ui/RotaryKnob';
 import { DIRECT_OUTPUT_CHANNELS } from '../presets/factoryPatches';
 import type {
@@ -154,74 +155,22 @@ export const OutputConsoleDrawer: React.FC<OutputConsoleDrawerProps> = ({
                     title={`${c.label} ${t('mixer.level', 'Level')}`}
                   />
 
-                  <div className="w-full mt-1.5 flex flex-col items-center">
-                    <div className="w-full flex items-center justify-between text-[7.5px] font-studio-mono text-gray-400 px-0.5 mb-0.5">
-                      <span className={cfg.pan < -0.05 ? 'text-sky-300 font-bold' : ''}>
-                        {cfg.pan < -0.05 ? `L${Math.round(Math.abs(cfg.pan) * 100)}` : 'L'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onUpdateOutputChannel(c.key, (prev) => ({
-                            ...prev,
-                            pan: 0,
-                          }));
-                        }}
-                        title={
-                          language === 'ja'
-                            ? 'クリックでパンをセンター（中央）に戻す'
-                            : 'Double-click or click to reset Pan to Center'
-                        }
-                        className={`px-1 py-0.2 rounded text-[7.5px] font-bold cursor-pointer transition-colors ${
-                          Math.abs(cfg.pan) <= 0.05
-                            ? 'bg-sky-400 text-black font-extrabold shadow-xs'
-                            : 'text-gray-400 hover:text-white bg-white/5'
-                        }`}
-                      >
-                        {Math.abs(cfg.pan) <= 0.05 ? 'C' : '•'}
-                      </button>
-                      <span className={cfg.pan > 0.05 ? 'text-sky-300 font-bold' : ''}>
-                        {cfg.pan > 0.05 ? `R${Math.round(cfg.pan * 100)}` : 'R'}
-                      </span>
-                    </div>
-
-                    {/* True Center-Origin Bipolar Pan Track */}
-                    <div
-                      className="w-full h-3 bg-black/70 rounded relative border border-white/10 flex items-center px-0.5 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const clickX = e.clientX - rect.left;
-                        const norm = Math.max(-1, Math.min(1, (clickX / rect.width) * 2 - 1));
+                  <div
+                    className="w-full mt-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <BipolarPanSlider
+                      value={cfg.pan}
+                      accentColor={c.color}
+                      compact
+                      title={`${c.label} Pan (Shift+Drag or Shift+Scroll for 10x Fine)`}
+                      onChange={(pan) =>
                         onUpdateOutputChannel(c.key, (prev) => ({
                           ...prev,
-                          pan: Math.round(norm * 20) / 20,
-                        }));
-                      }}
-                    >
-                      {/* Center tick line */}
-                      <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/30 -translate-x-1/2 z-0" />
-
-                      {/* Bipolar fill bar from center to current value */}
-                      {cfg.pan < 0 ? (
-                        <div
-                          className="absolute right-1/2 top-0.5 bottom-0.5 bg-sky-400/60 rounded-l"
-                          style={{ width: `${Math.abs(cfg.pan) * 50}%` }}
-                        />
-                      ) : cfg.pan > 0 ? (
-                        <div
-                          className="absolute left-1/2 top-0.5 bottom-0.5 bg-sky-400/60 rounded-r"
-                          style={{ width: `${cfg.pan * 50}%` }}
-                        />
-                      ) : null}
-
-                      {/* Pan Thumb */}
-                      <div
-                        className="absolute top-0 bottom-0 w-2 bg-white rounded shadow border border-sky-400 z-10 -translate-x-1/2"
-                        style={{ left: `${((cfg.pan + 1) / 2) * 100}%` }}
-                      />
-                    </div>
+                          pan,
+                        }))
+                      }
+                    />
                   </div>
                 </div>
               );

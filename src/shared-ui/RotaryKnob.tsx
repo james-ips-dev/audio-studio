@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface RotaryKnobProps {
   label: string;
@@ -71,11 +71,13 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isFineMode, setIsFineMode] = useState(false);
 
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const activePointersRef = useRef<Set<number>>(new Set());
   const dragStateRef = useRef<{
-    startY: number;
-    startValue: number;
+    lastY: number;
+    accumValue: number;
   } | null>(null);
+  const wheelFineTimeoutRef = useRef<number | null>(null);
   const lastTapTimeRef = useRef<number>(0);
 
   const range = Math.max(1e-9, max - min);
@@ -93,14 +95,75 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
   const pointerBase = polarToCartesian(center, center, radius * 0.32, currentAngle);
 
   const quantizeAndClamp = useCallback(
-    (raw: number): number => {
+    (raw: number, fine: boolean = false): number => {
       const bounded = Math.min(max, Math.max(min, raw));
       if (!step || step <= 0) return bounded;
-      const quantized = Math.round((bounded - min) / step) * step + min;
+      const effectiveStep = fine ? step * 0.1 : step;
+      const quantized =
+        Math.round((bounded - min) / effectiveStep) * effectiveStep + min;
       return Number(Math.min(max, Math.max(min, quantized)).toFixed(6));
     },
     [min, max, step]
   );
+
+  // Latest refs for non-passive wheel listener
+  const latestRef = useRef({
+    clamped,
+    range,
+    step,
+    disabled,
+    onChange,
+    quantizeAndClamp,
+  });
+  useEffect(() => {
+    latestRef.current = {
+      clamped,
+      range,
+      step,
+      disabled,
+      onChange,
+      quantizeAndClamp,
+    };
+  }, [clamped, range, step, disabled, onChange, quantizeAndClamp]);
+
+  // Native non-passive wheel listener for Scroll & Shift+Scroll fine adjustment
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const cur = latestRef.current;
+      if (cur.disabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const fine = e.shiftKey;
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const baseDelta =
+        cur.step && cur.step > 0 ? cur.step : cur.range / 100;
+      const delta = dir * (fine ? Math.min(baseDelta * 0.1, cur.range / 500) : baseDelta);
+
+      if (fine) {
+        setIsFineMode(true);
+        if (wheelFineTimeoutRef.current !== null) {
+          window.clearTimeout(wheelFineTimeoutRef.current);
+        }
+        wheelFineTimeoutRef.current = window.setTimeout(() => {
+          setIsFineMode(false);
+        }, 650);
+      }
+
+      cur.onChange(cur.quantizeAndClamp(cur.clamped + delta, fine));
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (wheelFineTimeoutRef.current !== null) {
+        window.clearTimeout(wheelFineTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleReset = useCallback(() => {
     if (disabled) return;
@@ -110,7 +173,7 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
         : bipolar
           ? (min + max) / 2
           : min;
-    onChange(quantizeAndClamp(resetTarget));
+    onChange(quantizeAndClamp(resetTarget, false));
   }, [disabled, defaultValue, bipolar, min, max, onChange, quantizeAndClamp]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -132,8 +195,8 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
 
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStateRef.current = {
-      startY: e.clientY,
-      startValue: clamped,
+      lastY: e.clientY,
+      accumValue: clamped,
     };
     setIsDragging(true);
     setIsFineMode(e.shiftKey || activePointersRef.current.size > 1);
@@ -146,12 +209,21 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
     const fine = e.shiftKey || activePointersRef.current.size > 1;
     setIsFineMode(fine);
 
-    const deltaPixels = dragStateRef.current.startY - e.clientY;
-    const sensitivityPixels = fine ? 1400 : 140;
-    const nextRaw =
-      dragStateRef.current.startValue + (deltaPixels / sensitivityPixels) * range;
+    const deltaPixels = dragStateRef.current.lastY - e.clientY;
+    dragStateRef.current.lastY = e.clientY;
 
-    onChange(quantizeAndClamp(nextRaw));
+    const sensitivityPixels = fine ? 1400 : 140;
+    const nextRaw = Math.min(
+      max,
+      Math.max(
+        min,
+        dragStateRef.current.accumValue +
+          (deltaPixels / sensitivityPixels) * range
+      )
+    );
+    dragStateRef.current.accumValue = nextRaw;
+
+    onChange(quantizeAndClamp(nextRaw, fine));
   };
 
   const handlePointerUpOrCancel = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -172,7 +244,7 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
 
   const displayString = formatValue
     ? formatValue(clamped)
-    : step >= 1
+    : step >= 1 && !isFineMode
       ? Math.round(clamped).toString()
       : clamped.toFixed(2);
 
@@ -186,6 +258,7 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
 
   return (
     <div
+      ref={rootRef}
       className={`inline-flex flex-col items-center select-none touch-none-control ${
         disabled ? 'opacity-40 pointer-events-none' : 'cursor-ns-resize'
       }`}
@@ -194,7 +267,7 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
       onPointerUp={handlePointerUpOrCancel}
       onPointerCancel={handlePointerUpOrCancel}
       onDoubleClick={handleReset}
-      title={`${label}: ${displayString} (Drag vertically • Hold Shift for 10x Fine • Double-click to Reset)`}
+      title={`${label}: ${displayString} (Drag or Scroll • Hold Shift for 10× Fine • Double-click to Reset)`}
     >
       <div className="relative flex items-center justify-center">
         <svg width={px} height={px} className="overflow-visible">
@@ -202,7 +275,7 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
           <path
             d={describeArc(center, center, radius, START_ANGLE, END_ANGLE)}
             fill="none"
-            stroke="rgba(255,255,255,0.12)"
+            stroke="var(--knob-track, rgba(255,255,255,0.12))"
             strokeWidth={stroke}
             strokeLinecap="round"
           />
@@ -236,8 +309,8 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
             cx={center}
             cy={center}
             r={radius - 4}
-            fill="#12151E"
-            stroke={isDragging ? accentColor : 'rgba(255,255,255,0.14)'}
+            fill="var(--knob-cap-bg, #12151E)"
+            stroke={isDragging ? accentColor : 'var(--knob-cap-border, rgba(255,255,255,0.14))'}
             strokeWidth={1.2}
           />
 
@@ -247,14 +320,14 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
             y1={pointerBase.y}
             x2={pointerTip.x}
             y2={pointerTip.y}
-            stroke="#F9FAFB"
+            stroke="var(--knob-needle, #F9FAFB)"
             strokeWidth={2}
             strokeLinecap="round"
           />
         </svg>
 
-        {isFineMode && isDragging && (
-          <span className="absolute -top-2 px-1 py-0.5 rounded bg-amber-500/90 text-black font-studio-mono text-[8px] font-bold tracking-wider uppercase shadow">
+        {isFineMode && (
+          <span className="absolute -top-2 px-1 py-0.5 rounded bg-amber-500/95 text-black font-studio-mono text-[8px] font-bold tracking-wider uppercase shadow z-20 pointer-events-none">
             10× FINE
           </span>
         )}
@@ -263,7 +336,7 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
       {/* Numeric Readout */}
       <span
         className={`font-studio-mono ${fontSize} font-semibold tracking-tight leading-none mt-0.5`}
-        style={{ color: isDragging ? accentColor : '#E5E7EB' }}
+        style={{ color: isDragging ? accentColor : 'var(--knob-text, #E5E7EB)' }}
       >
         {displayString}
       </span>

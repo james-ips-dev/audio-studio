@@ -30,6 +30,7 @@ import {
   AETHER8_FACTORY_PATCHES,
   AETHER_DRONE_PRESETS,
   AETHER_TRACK_META,
+  createEmptyAether8Patch,
   createXoxPatternFromStyle,
   normalizeAether8Patch,
 } from './presets/factoryPatches';
@@ -116,6 +117,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
   >([]);
   const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
   const [confirmUnplugOpen, setConfirmUnplugOpen] = useState(false);
+  const [confirmNewOpen, setConfirmNewOpen] = useState(false);
 
   // Sync patch into AudioEngine & Autosave
   useEffect(() => {
@@ -167,6 +169,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
         await engine.dispose();
       },
       isAudioActive: () => engine.isEnginePlaying(),
+      panic: () => engine.panic(),
     });
     // Do NOT trigger suspendAndCleanup on unmount in dev StrictMode or re-renders
     // Host Shell triggers suspendAndCleanup explicitly via registerHandle when changing outer tabs
@@ -352,7 +355,7 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
   );
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#0A0D12] text-[#E2E8F0] select-none overflow-hidden">
+    <div className="inst-aether8 h-full w-full flex flex-col bg-[#0A0D12] text-[#E2E8F0] select-none overflow-hidden">
       {/* Top Instrument Header */}
       <Aether8HeaderBar
         patch={patch}
@@ -402,6 +405,8 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
           );
         }}
         onImportJsonFile={handleImportJsonFile}
+        onNewPatch={() => setConfirmNewOpen(true)}
+        onPanic={() => engine.panic()}
       />
 
       {/* Collapsible 10-Ch Direct Output Console & 6-Slot Mod Matrix Drawer */}
@@ -811,6 +816,22 @@ export const Aether8Root: React.FC<InstrumentComponentProps> = ({
           />
         </div>
       </div>
+
+      {/* Confirm New Empty Patch Modal */}
+      <ConfirmModal
+        open={confirmNewOpen}
+        title="Initialize New Empty Patch?"
+        message="This will clear all 4 pattern banks (A-D) to 0 active steps across all 8 tracks, remove all patch cables, and zero out continuous drones and noise."
+        confirmLabel="New Empty Patch"
+        variant="danger"
+        onConfirm={() => {
+          engine.panic();
+          setPatch(createEmptyAether8Patch());
+          setActiveFromJack(null);
+          setConfirmNewOpen(false);
+        }}
+        onCancel={() => setConfirmNewOpen(false)}
+      />
 
       {/* Confirm Unplug All Cables Modal */}
       <ConfirmModal

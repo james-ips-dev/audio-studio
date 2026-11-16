@@ -264,7 +264,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
     return (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
         {/* Left: Preset Browser, Live Zero-Crossing Oscilloscope & ADSR Mountain */}
-        <div className="lg:col-span-5 rounded-xl border border-white/10 bg-[#151821] p-3 flex flex-col justify-between">
+        <div className="studio-module-synth lg:col-span-5 rounded-xl border border-white/10 bg-[#151821] p-3 flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <span
@@ -441,7 +441,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
 
         {/* Right: 6 Large Visual Macro Controls with Dual-Layer Friendly Labels */}
         <div
-          className={`lg:col-span-7 rounded-xl border p-3 flex flex-col justify-between transition-all ${
+          className={`studio-module-filter lg:col-span-7 rounded-xl border p-3 flex flex-col justify-between transition-all ${
             mutatedSparkle
               ? 'border-amber-400 bg-amber-500/10 shadow-[0_0_20px_rgba(251,191,36,0.35)]'
               : 'border-white/10 bg-[#151821]'
@@ -549,7 +549,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 h-full overflow-y-auto pr-1">
       {/* Module 1 & 2: Voice/Glide + 4-Oscillator & Noise Mixer */}
-      <div className="lg:col-span-5 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-synth lg:col-span-5 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
           <div className="flex items-center gap-1.5">
             <span
@@ -880,7 +880,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
       </div>
 
       {/* Module 3 & 4: Multimode Filter + Drive + AMP/FILTER Envelopes */}
-      <div className="lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-filter lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
           <span className="font-studio-mono text-[10px] font-bold uppercase text-sky-400">
             ZDF FILTER &amp; DUAL ENVELOPES
@@ -1059,7 +1059,7 @@ export const SynthEngineTab: React.FC<SynthEngineTabProps> = ({
       </div>
 
       {/* Module 5 & 6: Dual LFO Generators & 8-Slot Visual Modulation Matrix */}
-      <div className="lg:col-span-3 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between gap-1.5">
+      <div className="studio-module-mod lg:col-span-3 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between gap-1.5">
         {/* Dual LFO Generator Strip */}
         <div className="border-b border-white/10 pb-1.5">
           <div className="flex items-center justify-between mb-1">

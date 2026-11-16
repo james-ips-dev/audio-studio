@@ -3,8 +3,10 @@ import { useTranslation } from './core/useTranslation';
 import { audioGuard } from './core/audioGuard';
 import { DEFAULT_INSTRUMENT_ID, INSTRUMENT_REGISTRY } from './core/registry';
 import type { InstrumentHandle } from './core/types';
+import { useGlobalRangePrecision } from './core/useGlobalRangePrecision';
 
 const LAST_ACTIVE_TAB_KEY = 'studio_suite_last_active_tab';
+const STUDIO_THEME_KEY = 'studio_suite_theme';
 
 function getInitialInstrumentId(): string {
   try {
@@ -18,18 +20,44 @@ function getInitialInstrumentId(): string {
   return DEFAULT_INSTRUMENT_ID;
 }
 
+function getInitialTheme(): 'dark' | 'light' {
+  try {
+    const saved = localStorage.getItem(STUDIO_THEME_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      return saved;
+    }
+  } catch {
+    // Ignore
+  }
+  return 'dark';
+}
+
 export const App: React.FC = () => {
+  useGlobalRangePrecision();
+
   const { language, toggleLanguage, t } = useTranslation();
   const [activeInstrumentId, setActiveInstrumentId] = useState<string>(
     getInitialInstrumentId
   );
+  const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
   const [isSwitching, setIsSwitching] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [panicFlashing, setPanicFlashing] = useState<boolean>(false);
   const [audioStatus, setAudioStatus] = useState(() =>
     audioGuard.getStatusSnapshot()
   );
 
   const currentHandleRef = useRef<InstrumentHandle | null>(null);
+
+  // Sync theme attribute to <html>
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem(STUDIO_THEME_KEY, theme);
+    } catch {
+      // Ignore
+    }
+  }, [theme]);
 
   // Subscribe to live AudioIsolationGuard telemetry
   useEffect(() => {
@@ -51,6 +79,18 @@ export const App: React.FC = () => {
   // Callback passed to the mounted instrument to register its lifecycle handle
   const registerHandle = useCallback((handle: InstrumentHandle) => {
     currentHandleRef.current = handle;
+  }, []);
+
+  const handleGlobalPanic = useCallback(() => {
+    setPanicFlashing(true);
+    window.setTimeout(() => setPanicFlashing(false), 450);
+    if (currentHandleRef.current?.panic) {
+      currentHandleRef.current.panic();
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
   /**
@@ -178,10 +218,28 @@ export const App: React.FC = () => {
           })}
         </nav>
 
-        {/* Right Utility Slot: Audio Isolation Telemetry, Language Toggle & Fullscreen Toggle */}
-        <div className="flex items-center gap-2">
+        {/* Right Utility Slot: !PANIC, Audio Isolation Telemetry, Theme Toggle, Language Toggle & Fullscreen Toggle */}
+        <div className="flex items-center gap-1.5">
+          {/* Global !PANIC All Notes Off Button */}
+          <button
+            type="button"
+            onClick={handleGlobalPanic}
+            title={
+              language === 'ja'
+                ? '緊急オールノートオフ (!PANIC)：すべての発音・ディレイ残響・暴走フィードバックを即座に停止します'
+                : 'Emergency All Notes Off (!PANIC): Immediately kills all active voices, resonant tails & delay feedback'
+            }
+            className={`h-6 px-2 rounded flex items-center justify-center font-studio-mono text-[10px] font-extrabold border transition-all cursor-pointer ${
+              panicFlashing
+                ? 'bg-rose-500 text-black border-white scale-105 shadow-[0_0_14px_#F43F5E]'
+                : 'bg-rose-500/20 hover:bg-rose-500 hover:text-black border-rose-500/50 text-rose-300'
+            }`}
+          >
+            !PANIC
+          </button>
+
           <div
-            className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#10131C] border border-white/[0.07] font-studio-mono text-[10px]"
+            className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#10131C] border border-white/[0.07] font-studio-mono text-[10px]"
             title={
               language === 'ja'
                 ? '単一のAudioContextを保ち、切替時のノイズや過負荷を完全に防止します'
@@ -205,6 +263,24 @@ export const App: React.FC = () => {
                   : t('shell.audioIsolated', 'AUDIO ISOLATED • READY')}
             </span>
           </div>
+
+          {/* Dark / Light Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={
+              theme === 'dark'
+                ? language === 'ja'
+                  ? 'ライトモードに切り替え'
+                  : 'Switch to Light Mode'
+                : language === 'ja'
+                  ? 'ダークモードに切り替え'
+                  : 'Switch to Dark Mode'
+            }
+            className="h-6 px-2 rounded flex items-center justify-center bg-[#10131C] hover:bg-white/10 border border-white/[0.12] text-amber-300 hover:text-white font-studio-mono text-[10px] font-bold transition-all cursor-pointer shadow-xs"
+          >
+            {theme === 'dark' ? '☀️ LIGHT' : '🌙 DARK'}
+          </button>
 
           {/* Language Toggle Button [EN | 日本語] */}
           <button

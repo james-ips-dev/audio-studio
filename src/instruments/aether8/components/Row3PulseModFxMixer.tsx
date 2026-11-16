@@ -50,7 +50,7 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
       {/* ====================================================================
           07 // VACTROL SUB-PULSE (Organic Low-Pass-Gate Bass Pulse)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-filter p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-emerald-400">
             07 // VACTROL SUB-PULSE
@@ -166,7 +166,7 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
       {/* ====================================================================
           08 // SLOW LFO & CHAOS (Beat-Triggered Phase-Reset LFOs & S&H)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-mod p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-amber-400">
             08 // SLOW LFO &amp; CHAOS
@@ -267,7 +267,7 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
       {/* ====================================================================
           09 // WAVEFOLD & LO-FI FX
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-fx p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-pink-400">
             09 // WAVEFOLD &amp; LO-FI FX
@@ -380,7 +380,7 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
       {/* ====================================================================
           10 // DUB TAPE DELAY (Multi-Head Stereo Echo)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-fx p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-indigo-400">
             10 // DUB TAPE DELAY
@@ -492,7 +492,7 @@ export const Row3PulseModFxMixer: React.FC<Row3PulseModFxMixerProps> = ({
       {/* ====================================================================
           11 // SPACE & TAPE MIXER (4-Ch Sidechain Mixer & Cavern Reverb)
           ==================================================================== */}
-      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] p-2.5 flex flex-col justify-between">
+      <div className="xl:col-span-3 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-synth p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
           <span className="font-studio-mono text-[10px] font-bold text-sky-400">
             11 // SPACE &amp; TAPE MIXER

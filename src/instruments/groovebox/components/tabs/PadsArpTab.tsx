@@ -143,7 +143,7 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
       {/* Left: 4x4 Multi-Touch Pad Grid with Functional Note Gravity Coloring */}
-      <div className="lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-seq lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
           <div className="flex items-center gap-1 bg-black/50 p-0.5 rounded-lg border border-white/10">
             {(['scale', 'chords', 'drums'] as const).map((m) => (
@@ -231,7 +231,7 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
       </div>
 
       {/* Right: Magic Chord, Voice Leading, Arpeggiator & Live Resampler */}
-      <div className="lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between space-y-2">
+      <div className="studio-module-mod lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between space-y-2">
         {/* Smart Chord Voicing & ✨ MAGIC CHORD */}
         <div className="bg-black/35 p-2 rounded-lg border border-white/5 space-y-1.5">
           <div className="flex items-center justify-between font-studio-mono text-[10px]">

@@ -201,7 +201,7 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
           MODULE 01 // 8-TRACK X0X UNDERTONE SEQUENCER (4-Pat x 4-Bar x 8-Track)
           ==================================================================== */}
       <div
-        className="xl:col-span-7 rounded-xl border border-sky-500/20 bg-[#11161F] p-3 flex flex-col justify-between"
+        className="xl:col-span-7 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-seq p-3 flex flex-col justify-between"
         onPointerUp={() => {
           dragOriginRef.current = null;
           paintIntentRef.current = null;
@@ -700,7 +700,7 @@ export const Row1BeatAndSynth: React.FC<Row1BeatAndSynthProps> = ({
       {/* ====================================================================
           MODULE 02 // 8-TRACK STUDIO SYNTH & BEAT ENGINE (20 Presets x 8 Tracks)
           ==================================================================== */}
-      <div className="xl:col-span-5 rounded-xl border border-sky-500/20 bg-[#11161F] p-3 flex flex-col justify-between">
+      <div className="xl:col-span-5 rounded-xl border border-sky-500/20 bg-[#11161F] studio-module-synth p-3 flex flex-col justify-between">
         {/* Top Row: Title + 20-Preset Browser + Audition Hit & Mutate */}
         <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1.5 border-b border-white/10">
           <div className="flex items-center gap-1.5">

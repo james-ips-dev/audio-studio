@@ -1635,3 +1635,58 @@ export const AETHER8_FACTORY_PATCHES: FactoryPatchMeta[] = [
     ),
   },
 ];
+
+/**
+ * Creates a completely clean, empty initialization patch for AETHER-8 v4
+ * with 0 active steps across all 4 pattern banks (A-D), 0 cables, and zeroed continuous generators.
+ */
+export function createEmptyAether8Patch(): Aether8PatchV4 {
+  const emptyBank = (): XoxPatternBank => ({
+    barCount: 2,
+    trackLengths: [16, 16, 16, 16, 16, 16, 16, 16],
+    steps: Array.from({ length: 8 }, () => new Array(64).fill(0)),
+    notes: AETHER_TRACK_META.map((m) => new Array(64).fill(m.defaultMidiNote)),
+  });
+
+  const base = buildFactoryPatch(
+    'INIT EMPTY',
+    {
+      bpm: 90,
+      timbreMode: 'soft',
+      chordType: 'min7',
+      noiseColor: 'pink',
+      activePattern: 'A',
+      xoxPatterns: {
+        A: emptyBank(),
+        B: emptyBank(),
+        C: emptyBank(),
+        D: emptyBank(),
+      },
+      cables: [],
+      matrixSlots: [
+        { enabled: false, source: 'lfo1', depth: 0, dest: 'filter.cutoff' },
+        { enabled: false, source: 'lfo2', depth: 0, dest: 'drone.detune' },
+        { enabled: false, source: 'chaos', depth: 0, dest: 'noise.formant' },
+        { enabled: false, source: 'sh', depth: 0, dest: 'delay.time' },
+        { enabled: false, source: 'lfo1', depth: 0, dest: 'pulse.decay' },
+        { enabled: false, source: 'chaos', depth: 0, dest: 'drone.morph' },
+      ],
+    },
+    {
+      drone: { swarmLevel: 0, subLevel: 0 },
+      noise: { noiseLevel: 0, vinylDust: 0, tapeHiss: 0 },
+      biosphere: {
+        rainLvl: 0,
+        waterFlow: 0,
+        wavesLvl: 0,
+        windGust: 0,
+        stormProb: 0,
+      },
+    },
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    0
+  );
+
+  return base;
+}
+

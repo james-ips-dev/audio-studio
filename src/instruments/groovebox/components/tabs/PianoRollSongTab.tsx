@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   getNoteGravity,
   getScaleNotes,
@@ -12,6 +12,8 @@ export interface PianoRollSongTabProps {
   visibleBar: number;
   currentGlobalStep: number;
   isPlaying: boolean;
+  dragExtendMode: boolean;
+  onToggleDragExtendMode: () => void;
   onUpdateStepData: (
     trackIndex: number,
     stepIndex: number,
@@ -33,6 +35,8 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
   visibleBar,
   currentGlobalStep,
   isPlaying,
+  dragExtendMode,
+  onToggleDragExtendMode,
   onUpdateStepData,
   onAnswerMeCoPlay,
   onApplyVelocityTool,
@@ -47,6 +51,22 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
   const seq = activePattern.tracks[focusedTrack.index];
   const barOffset = visibleBar * 16;
 
+  // Piano Roll Drag-Extend Tie & Paint State
+  const dragTieOriginRef = useRef<{
+    stepIdx: number;
+    midi: number;
+  } | null>(null);
+  const paintNoteIntentRef = useRef<boolean | null>(null);
+
+  // Velocity Bar Drag & Fine Control State
+  const velDragRef = useRef<{
+    stepIdx: number;
+    lastY: number;
+    accumVel: number;
+  } | null>(null);
+  const [activeVelStep, setActiveVelStep] = useState<number | null>(null);
+  const [velFineMode, setVelFineMode] = useState<boolean>(false);
+
   // Folded Scale Grid rows (8 in-key pitches from high to low)
   const scalePitches = getScaleNotes(
     project.rootNote,
@@ -55,12 +75,35 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
     8
   ).reverse();
 
+  const applyStepVelocity = (stepIdx: number, nextVel: number) => {
+    const clamped = Number(Math.max(0.05, Math.min(1, nextVel)).toFixed(4));
+    onUpdateStepData(focusedTrack.index, stepIdx, (prev) => ({
+      ...prev,
+      active: true,
+      velocity: clamped,
+      notes: prev.notes.map((n) => ({
+        ...n,
+        velocity: clamped,
+      })),
+    }));
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-y-auto">
+    <div
+      className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-y-auto"
+      onPointerUp={() => {
+        dragTieOriginRef.current = null;
+        paintNoteIntentRef.current = null;
+      }}
+      onPointerLeave={() => {
+        dragTieOriginRef.current = null;
+        paintNoteIntentRef.current = null;
+      }}
+    >
       {/* Left: Folded Scale Piano Roll + Docked Visual Velocity Lane */}
-      <div className="lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
+      <div className="studio-module-synth lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
+          <div className="flex items-center gap-1.5">
             <span
               className="px-2 py-0.5 rounded font-studio-mono text-[10px] font-bold text-black"
               style={{ backgroundColor: focusedTrack.color }}
@@ -69,10 +112,24 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
             </span>
             <button
               type="button"
+              onClick={onToggleDragExtendMode}
+              className={`px-2 py-0.5 rounded font-studio-mono text-[10px] font-bold border transition-colors cursor-pointer ${
+                dragExtendMode
+                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/50'
+                  : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'
+              }`}
+              title="Synced with Sequencer DRAG button: Toggle between dragging multi-step sustaining note ties vs painting 1-step notes"
+            >
+              {dragExtendMode
+                ? '↔ DRAG: EXTEND TIE'
+                : '✏️ DRAG: PAINT STEPS'}
+            </button>
+            <button
+              type="button"
               onClick={() => onAnswerMeCoPlay(focusedTrack.index)}
               className="px-2 py-0.5 rounded bg-violet-500/25 hover:bg-violet-500/40 text-violet-200 border border-violet-400/40 font-studio-mono text-[10px] font-bold cursor-pointer"
             >
-              🪄 ANSWER ME (2-BAR CO-PLAY)
+              🪄 ANSWER ME
             </button>
           </div>
 
@@ -132,55 +189,236 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
 
                 <div className="grid grid-cols-16 gap-0.5 h-full">
                   {Array.from({ length: 16 }, (_, cIdx) => {
-                    const stepIdx = (barOffset + cIdx) % (seq?.lengthSteps || 16);
+                    const polyLen = seq?.lengthSteps || 16;
+                    const stepIdx = (barOffset + cIdx) % polyLen;
                     const step = seq?.steps[stepIdx];
                     const hasNote =
-                      step?.active &&
-                      step.notes.some((n) => n.midiNote === midi);
+                      Boolean(step?.active) &&
+                      Boolean(step?.notes.some((n) => n.midiNote === midi));
+
+                    // Check if covered by an earlier active step's multi-beat tie on this pitch row
+                    let tieSourceStepIdx: number | null = null;
+                    let isTieEnd = false;
+                    if (!hasNote && seq) {
+                      for (
+                        let prevIdx = stepIdx - 1;
+                        prevIdx >= Math.max(0, stepIdx - 15);
+                        prevIdx--
+                      ) {
+                        const prevStep = seq.steps[prevIdx];
+                        if (prevStep?.active) {
+                          const matchingNote = prevStep.notes.find(
+                            (n) => n.midiNote === midi
+                          );
+                          if (matchingNote) {
+                            const dur = matchingNote.durationSteps || 1;
+                            if (prevIdx + dur > stepIdx) {
+                              tieSourceStepIdx = prevIdx;
+                              isTieEnd = prevIdx + dur - 1 === stepIdx;
+                            }
+                          }
+                          break;
+                        }
+                      }
+                    }
+
+                    const isTiedContinuation = tieSourceStepIdx !== null;
+                    const noteDuration =
+                      step?.notes.find((n) => n.midiNote === midi)
+                        ?.durationSteps ?? 1;
                     const isPlayhead =
-                      isPlaying &&
-                      currentGlobalStep % (seq?.lengthSteps || 16) === stepIdx;
+                      isPlaying && currentGlobalStep % polyLen === stepIdx;
 
                     return (
                       <button
                         key={cIdx}
                         type="button"
-                        onClick={() =>
-                          onUpdateStepData(
-                            focusedTrack.index,
-                            stepIdx,
-                            (prev) => {
-                              const already =
-                                prev.active &&
-                                prev.notes.some((n) => n.midiNote === midi);
-                              if (already) {
-                                return { ...prev, active: false };
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+
+                          // Shift+Click extends the nearest preceding active note on this row up to this step
+                          if (e.shiftKey && seq) {
+                            for (let pIdx = stepIdx - 1; pIdx >= 0; pIdx--) {
+                              const pStep = seq.steps[pIdx];
+                              if (
+                                pStep?.active &&
+                                pStep.notes.some((n) => n.midiNote === midi)
+                              ) {
+                                const newDur = Math.min(
+                                  16,
+                                  stepIdx - pIdx + 1
+                                );
+                                onUpdateStepData(
+                                  focusedTrack.index,
+                                  pIdx,
+                                  (prev) => ({
+                                    ...prev,
+                                    active: true,
+                                    notes: prev.notes.map((n) => ({
+                                      ...n,
+                                      durationSteps: newDur,
+                                    })),
+                                  })
+                                );
+                                return;
                               }
-                              return {
-                                ...prev,
-                                active: true,
-                                notes: [
-                                  {
-                                    midiNote: midi,
-                                    velocity: prev.velocity || 0.85,
-                                    durationSteps:
-                                      prev.notes[0]?.durationSteps || 1,
-                                    glide: false,
-                                  },
-                                ],
-                              };
                             }
-                          )
-                        }
+                          }
+
+                          // Clicking a tied continuation cell truncates the tie length
+                          if (tieSourceStepIdx !== null) {
+                            const srcIdx = tieSourceStepIdx;
+                            onUpdateStepData(
+                              focusedTrack.index,
+                              srcIdx,
+                              (prev) => ({
+                                ...prev,
+                                notes: prev.notes.map((n) => ({
+                                  ...n,
+                                  durationSteps: Math.max(1, stepIdx - srcIdx),
+                                })),
+                              })
+                            );
+                            return;
+                          }
+
+                          const nextActive = !hasNote;
+                          if (dragExtendMode) {
+                            if (nextActive) {
+                              onUpdateStepData(
+                                focusedTrack.index,
+                                stepIdx,
+                                (prev) => ({
+                                  ...prev,
+                                  active: true,
+                                  notes: [
+                                    {
+                                      midiNote: midi,
+                                      velocity: prev.velocity || 0.85,
+                                      durationSteps: 1,
+                                      glide: false,
+                                    },
+                                  ],
+                                })
+                              );
+                              dragTieOriginRef.current = { stepIdx, midi };
+                            } else {
+                              onUpdateStepData(
+                                focusedTrack.index,
+                                stepIdx,
+                                (prev) => ({
+                                  ...prev,
+                                  active: false,
+                                  notes: prev.notes.map((n) => ({
+                                    ...n,
+                                    durationSteps: 1,
+                                  })),
+                                })
+                              );
+                              dragTieOriginRef.current = null;
+                            }
+                          } else {
+                            paintNoteIntentRef.current = nextActive;
+                            onUpdateStepData(
+                              focusedTrack.index,
+                              stepIdx,
+                              (prev) => ({
+                                ...prev,
+                                active: nextActive,
+                                notes: nextActive
+                                  ? [
+                                      {
+                                        midiNote: midi,
+                                        velocity: prev.velocity || 0.85,
+                                        durationSteps: 1,
+                                        glide: false,
+                                      },
+                                    ]
+                                  : prev.notes,
+                              })
+                            );
+                          }
+                        }}
+                        onPointerEnter={() => {
+                          if (
+                            dragExtendMode &&
+                            dragTieOriginRef.current &&
+                            dragTieOriginRef.current.midi === midi
+                          ) {
+                            const origIdx = dragTieOriginRef.current.stepIdx;
+                            if (stepIdx >= origIdx) {
+                              const newDur = Math.min(
+                                16,
+                                stepIdx - origIdx + 1
+                              );
+                              onUpdateStepData(
+                                focusedTrack.index,
+                                origIdx,
+                                (prev) => ({
+                                  ...prev,
+                                  active: true,
+                                  notes: prev.notes.map((n) => ({
+                                    ...n,
+                                    durationSteps: newDur,
+                                  })),
+                                })
+                              );
+                            }
+                            return;
+                          }
+
+                          if (
+                            !dragExtendMode &&
+                            paintNoteIntentRef.current !== null
+                          ) {
+                            const shouldPaint = paintNoteIntentRef.current;
+                            onUpdateStepData(
+                              focusedTrack.index,
+                              stepIdx,
+                              (prev) => ({
+                                ...prev,
+                                active: shouldPaint,
+                                notes: shouldPaint
+                                  ? [
+                                      {
+                                        midiNote: midi,
+                                        velocity: prev.velocity || 0.85,
+                                        durationSteps: 1,
+                                        glide: false,
+                                      },
+                                    ]
+                                  : prev.notes,
+                              })
+                            );
+                          }
+                        }}
                         style={{
                           backgroundColor: hasNote
                             ? focusedTrack.color
-                            : isPlayhead
-                              ? 'rgba(255,255,255,0.18)'
-                              : 'rgba(255,255,255,0.04)',
+                            : isTiedContinuation
+                              ? `${focusedTrack.color}60`
+                              : isPlayhead
+                                ? 'rgba(255,255,255,0.22)'
+                                : 'rgba(255,255,255,0.04)',
+                          borderColor: isPlayhead
+                            ? '#FFFFFF'
+                            : isTiedContinuation
+                              ? focusedTrack.color
+                              : 'rgba(255,255,255,0.06)',
                         }}
-                        className="rounded-xs border border-white/5 cursor-pointer"
-                      />
+                        className="rounded-xs border transition-none flex items-center justify-center cursor-pointer touch-none-control overflow-hidden"
+                      >
+                        {hasNote && noteDuration > 1 && (
+                          <span className="font-studio-mono text-[7px] font-bold text-black leading-none">
+                            ═{noteDuration}
+                          </span>
+                        )}
+                        {isTiedContinuation && (
+                          <span className="font-studio-mono text-[7px] font-bold text-white leading-none">
+                            {isTieEnd ? '═►' : '══'}
+                          </span>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
@@ -189,36 +427,109 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
           })}
         </div>
 
-        {/* Docked Bottom Per-Note Visual Velocity Lane */}
-        <div className="grid grid-cols-[54px_1fr] gap-1 items-end pt-1 border-t border-white/10 h-10">
-          <span className="font-studio-mono text-[9px] text-gray-400">
-            VELOCITY
-          </span>
+        {/* Docked Bottom Per-Note Visual Velocity Lane (With Shift+Drag & Shift+Scroll Fine Control) */}
+        <div className="grid grid-cols-[54px_1fr] gap-1 items-end pt-1 border-t border-white/10 h-11 relative">
+          <div className="flex flex-col justify-between h-full py-0.5">
+            <span className="font-studio-mono text-[8.5px] font-bold text-gray-400">
+              VELOCITY
+            </span>
+            {velFineMode && (
+              <span className="px-1 py-0.2 rounded bg-amber-500 text-black font-studio-mono text-[7px] font-bold uppercase w-fit">
+                10× FINE
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-16 gap-0.5 h-full items-end">
             {Array.from({ length: 16 }, (_, cIdx) => {
               const stepIdx = (barOffset + cIdx) % (seq?.lengthSteps || 16);
               const step = seq?.steps[stepIdx];
               const vel = step?.active ? step.velocity : 0.15;
+              const isEditingThis = activeVelStep === stepIdx;
 
               return (
                 <div
                   key={cIdx}
-                  onClick={() => {
-                    const nextVel =
-                      vel >= 0.95 ? 0.35 : Math.min(1, vel + 0.2);
-                    onUpdateStepData(focusedTrack.index, stepIdx, (prev) => ({
-                      ...prev,
-                      active: true,
-                      velocity: nextVel,
-                      notes: prev.notes.map((n) => ({
-                        ...n,
-                        velocity: nextVel,
-                      })),
-                    }));
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    const fine = e.shiftKey;
+                    setActiveVelStep(stepIdx);
+                    setVelFineMode(fine);
+
+                    let startVel = step?.active ? step.velocity : 0.75;
+                    if (!fine) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const relY =
+                        1 -
+                        Math.max(
+                          0,
+                          Math.min(1, (e.clientY - rect.top) / Math.max(1, rect.height))
+                        );
+                      startVel = Math.max(0.05, Math.min(1, relY));
+                      applyStepVelocity(stepIdx, startVel);
+                    }
+
+                    velDragRef.current = {
+                      stepIdx,
+                      lastY: e.clientY,
+                      accumVel: startVel,
+                    };
                   }}
-                  title={`Step ${stepIdx + 1} Velocity: ${Math.round(vel * 127)} (Click to cycle)`}
-                  className="h-full bg-black/50 rounded-xs flex flex-col justify-end p-0.2 cursor-ns-resize border border-white/5"
+                  onPointerMove={(e) => {
+                    if (
+                      !velDragRef.current ||
+                      velDragRef.current.stepIdx !== stepIdx
+                    ) {
+                      return;
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const fine = e.shiftKey;
+                    setVelFineMode(fine);
+
+                    const dy = velDragRef.current.lastY - e.clientY;
+                    velDragRef.current.lastY = e.clientY;
+
+                    const sensitivity = fine ? 480 : 48;
+                    const nextVel = Math.max(
+                      0.05,
+                      Math.min(1, velDragRef.current.accumVel + dy / sensitivity)
+                    );
+                    velDragRef.current.accumVel = nextVel;
+                    applyStepVelocity(stepIdx, nextVel);
+                  }}
+                  onPointerUp={(e) => {
+                    velDragRef.current = null;
+                    setActiveVelStep(null);
+                    setVelFineMode(false);
+                    try {
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      }
+                    } catch {
+                      // Ignore
+                    }
+                  }}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const fine = e.shiftKey;
+                    setVelFineMode(fine);
+                    const dir = e.deltaY < 0 ? 1 : -1;
+                    const stepDelta = fine ? 1 / 127 : 0.05;
+                    const baseVel = step?.active ? step.velocity : 0.5;
+                    applyStepVelocity(stepIdx, baseVel + dir * stepDelta);
+                    window.setTimeout(() => setVelFineMode(false), 500);
+                  }}
+                  title={`Step ${stepIdx + 1} Velocity: ${Math.round(vel * 127)} / 127 (${Math.round(vel * 100)}%) — Drag vertically or Scroll • Hold Shift for 10× Fine`}
+                  className="h-full bg-black/50 rounded-xs flex flex-col justify-end p-0.2 cursor-ns-resize border border-white/5 relative touch-none-control"
                 >
+                  {isEditingThis && (
+                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-1 rounded bg-black/90 text-white font-studio-mono text-[7.5px] font-bold z-20 pointer-events-none">
+                      {Math.round(vel * 127)}
+                    </span>
+                  )}
                   <div
                     style={{
                       height: `${Math.round(vel * 100)}%`,
@@ -226,7 +537,7 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
                         ? focusedTrack.color
                         : 'rgba(255,255,255,0.15)',
                     }}
-                    className="w-full rounded-xs transition-all"
+                    className="w-full rounded-xs transition-none pointer-events-none"
                   />
                 </div>
               );
@@ -236,7 +547,7 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
       </div>
 
       {/* Right: Linear Song Arranger & Multi-Format Export Suite */}
-      <div className="lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-mod lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div>
           <span className="font-studio-mono text-[10px] font-bold uppercase text-amber-400">
             LINEAR SONG ARRANGER TIMELINE

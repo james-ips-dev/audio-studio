@@ -20,6 +20,7 @@ import {
 import { midiToFreq } from '../presets/factoryPresets';
 import type {
   GrooveboxProject,
+  KaossAxisDest,
   NoteEvent,
   PunchInFxType,
   RatchetCurve,
@@ -133,10 +134,18 @@ export class GrooveboxAudioEngine {
   private isPlaying: boolean = false;
   private isFillHeld: boolean = false;
   private isBuildDropHeld: boolean = false;
-  private kaossActive: { x: number; y: number; targets: number[]; master: boolean } | null =
-    null;
+  private kaossActive: {
+    x: number;
+    y: number;
+    targets: number[];
+    master: boolean;
+    xDest: KaossAxisDest;
+    yDest: KaossAxisDest;
+  } | null = null;
 
   private schedulerTimer: number | null = null;
+  private playheadTimeouts: Set<number> = new Set();
+  private activeVoiceGains: Set<GainNode> = new Set();
   private nextStepTime: number = 0;
   private currentGlobalStep: number = 0;
   private loopCycleCount: number = 0;
@@ -249,27 +258,118 @@ export class GrooveboxAudioEngine {
     x: number | null,
     y: number | null,
     targets: number[],
-    master: boolean
+    master: boolean,
+    xDest: KaossAxisDest = 'cutoff',
+    yDest: KaossAxisDest = 'resonance'
   ): void {
     if (x === null || y === null) {
       this.kaossActive = null;
       this.syncMixerAndMasterGraph();
       return;
     }
-    this.kaossActive = { x, y, targets, master };
-    if (this.audioCtx && this.masterFilter && master) {
-      const freq = 120 * Math.pow(18000 / 120, x);
-      this.masterFilter.frequency.setTargetAtTime(
-        freq,
-        this.audioCtx.currentTime,
-        0.02
-      );
-      this.masterFilter.Q.setTargetAtTime(
-        0.7 + y * 10,
-        this.audioCtx.currentTime,
-        0.02
-      );
+    this.kaossActive = { x, y, targets, master, xDest, yDest };
+    if (!this.audioCtx) return;
+    const now = this.audioCtx.currentTime;
+
+    const applyAxisLive = (dest: KaossAxisDest, val: number) => {
+      if (dest === 'cutoff' && this.masterFilter && master) {
+        const freq = 120 * Math.pow(18000 / 120, val);
+        this.masterFilter.frequency.setTargetAtTime(freq, now, 0.02);
+      } else if (dest === 'resonance' && this.masterFilter && master) {
+        this.masterFilter.Q.setTargetAtTime(0.7 + val * 10, now, 0.02);
+      } else if (dest === 'reverbSend') {
+        if (master && this.reverbReturnGain) {
+          this.reverbReturnGain.gain.setTargetAtTime(val * 0.85, now, 0.03);
+        }
+        for (const tIdx of targets) {
+          this.trackChannels[tIdx]?.reverbSendGain.gain.setTargetAtTime(
+            val * 0.85,
+            now,
+            0.02
+          );
+        }
+      } else if (dest === 'delaySend') {
+        if (master && this.delayFeedbackGain && this.delayReturnGain) {
+          this.delayFeedbackGain.gain.setTargetAtTime(
+            Math.min(0.86, val * 0.85),
+            now,
+            0.03
+          );
+          this.delayReturnGain.gain.setTargetAtTime(val * 0.75, now, 0.03);
+        }
+        for (const tIdx of targets) {
+          this.trackChannels[tIdx]?.delaySendGain.gain.setTargetAtTime(
+            val * 0.8,
+            now,
+            0.02
+          );
+        }
+      } else if (dest === 'pan') {
+        const panVal = Math.max(-1, Math.min(1, val * 2 - 1));
+        for (const tIdx of targets) {
+          this.trackChannels[tIdx]?.panner.pan.setTargetAtTime(
+            panVal,
+            now,
+            0.02
+          );
+        }
+      }
+    };
+
+    applyAxisLive(xDest, x);
+    applyAxisLive(yDest, y);
+  }
+
+  /**
+   * Emergency All Notes Off (!PANIC):
+   * Silences all active voices, flushes delay/reverb feedback tanks, and resets momentary FX.
+   */
+  public panic(): void {
+    for (const tid of this.playheadTimeouts) {
+      window.clearTimeout(tid);
     }
+    this.playheadTimeouts.clear();
+    this.sustainedStepsRemaining = Array(8).fill(0);
+    this.kaossActive = null;
+    this.isBuildDropHeld = false;
+    this.isFillHeld = false;
+    this.projectRef.performance.activePunchInFx = 'none';
+
+    const ctx = this.audioCtx;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    for (const vca of this.activeVoiceGains) {
+      try {
+        vca.gain.cancelScheduledValues(now);
+        vca.gain.setValueAtTime(Math.max(0.0001, vca.gain.value), now);
+        vca.gain.exponentialRampToValueAtTime(0.0001, now + 0.008);
+      } catch {
+        // Ignore
+      }
+    }
+    this.activeVoiceGains.clear();
+
+    if (this.delayFeedbackGain) {
+      this.delayFeedbackGain.gain.cancelScheduledValues(now);
+      this.delayFeedbackGain.gain.setValueAtTime(0, now);
+    }
+    if (this.delayReturnGain) {
+      this.delayReturnGain.gain.cancelScheduledValues(now);
+      this.delayReturnGain.gain.setValueAtTime(0, now);
+    }
+    if (this.reverbReturnGain) {
+      this.reverbReturnGain.gain.cancelScheduledValues(now);
+      this.reverbReturnGain.gain.setValueAtTime(0, now);
+    }
+    if (this.reverbEcoFeedback) {
+      this.reverbEcoFeedback.gain.cancelScheduledValues(now);
+      this.reverbEcoFeedback.gain.setValueAtTime(0, now);
+    }
+
+    window.setTimeout(() => {
+      this.syncMixerAndMasterGraph();
+    }, 65);
   }
 
   public onPlayheadStep(listener: StepPlayheadListener): () => void {
@@ -619,6 +719,10 @@ export class GrooveboxAudioEngine {
       window.clearInterval(this.schedulerTimer);
       this.schedulerTimer = null;
     }
+    for (const tid of this.playheadTimeouts) {
+      window.clearTimeout(tid);
+    }
+    this.playheadTimeouts.clear();
     this.currentGlobalStep = 0;
     this.sustainedStepsRemaining = Array(8).fill(0);
     this.syncMixerAndMasterGraph();
@@ -856,15 +960,23 @@ export class GrooveboxAudioEngine {
       );
     }
 
+    const outLatencySec =
+      (this.audioCtx as (AudioContext & { outputLatency?: number }) | null)
+        ?.outputLatency ||
+      this.audioCtx?.baseLatency ||
+      0.018;
     const delayMs = Math.max(
       0,
-      (baseTime - (this.audioCtx?.currentTime ?? baseTime)) * 1000
+      (baseTime - (this.audioCtx?.currentTime ?? baseTime) + outLatencySec) *
+        1000
     );
-    window.setTimeout(() => {
+    const tid = window.setTimeout(() => {
+      this.playheadTimeouts.delete(tid);
       if (this.isPlaying) {
         this.notifyPlayhead(globalStep, trackStepPositions);
       }
     }, delayMs);
+    this.playheadTimeouts.add(tid);
   }
 
   private computeRatchetVelocityScale(
@@ -986,8 +1098,9 @@ export class GrooveboxAudioEngine {
     // Resolve P-Lock & Kaoss overrides
     let cutoff = pLocks.cutoff ?? synth.filter.cutoff;
     let resonance = pLocks.resonance ?? synth.filter.resonance;
-    const fmDepth = pLocks.fmDirt ?? synth.osc2.fmDepth;
-    const ampDecay = pLocks.ampDecay ?? synth.ampEnv.decay;
+    let fmDepth = pLocks.fmDirt ?? synth.osc2.fmDepth;
+    let ampDecay = pLocks.ampDecay ?? synth.ampEnv.decay;
+    let kaossPitchSemis = 0;
 
     // Apply Scene Crossfader morphing
     const sceneXf = this.projectRef.sceneCrossfader;
@@ -1007,14 +1120,27 @@ export class GrooveboxAudioEngine {
       this.kaossActive &&
       this.kaossActive.targets.includes(trackIndex)
     ) {
-      cutoff = 80 * Math.pow(16000 / 80, this.kaossActive.x);
-      resonance = 0.7 + this.kaossActive.y * 14;
+      const applyAxisVoice = (dest: KaossAxisDest, val: number) => {
+        if (dest === 'cutoff') {
+          cutoff = 80 * Math.pow(16000 / 80, val);
+        } else if (dest === 'resonance') {
+          resonance = 0.7 + val * 14;
+        } else if (dest === 'fmDepth') {
+          fmDepth = val * 0.9;
+        } else if (dest === 'decay') {
+          ampDecay = 0.04 + val * 1.4;
+        } else if (dest === 'pitch') {
+          kaossPitchSemis = Math.round((val - 0.5) * 24);
+        }
+      };
+      applyAxisVoice(this.kaossActive.xDest, this.kaossActive.x);
+      applyAxisVoice(this.kaossActive.yDest, this.kaossActive.y);
     }
 
     // Compute fundamental frequency (with Key-Lock drum tuning if enabled)
-    let midi = noteEvent.midiNote;
+    let midi = noteEvent.midiNote + kaossPitchSemis;
     if (trk.isDrum && synth.voice.keyTunedDrum) {
-      midi = 36 + this.projectRef.rootNote;
+      midi = 36 + this.projectRef.rootNote + kaossPitchSemis;
     }
     const baseFreq = midiToFreq(midi);
 
@@ -1030,6 +1156,7 @@ export class GrooveboxAudioEngine {
       const clickOsc = ctx.createOscillator();
       const filter = ctx.createBiquadFilter();
       const vca = ctx.createGain();
+      this.activeVoiceGains.add(vca);
 
       kickOsc.type = 'sine';
       const punchMult = 1 + Math.max(0.2, synth.beginnerMacros.pitchEnv) * 3.2;
@@ -1081,6 +1208,7 @@ export class GrooveboxAudioEngine {
       kickOsc.stop(startTime + totalDur + 0.06);
       clickOsc.stop(startTime + 0.03);
       kickOsc.onended = () => {
+        this.activeVoiceGains.delete(vca);
         kickOsc.disconnect();
         clickOsc.disconnect();
         clickGain.disconnect();
@@ -1112,6 +1240,7 @@ export class GrooveboxAudioEngine {
     );
 
     const vca = ctx.createGain();
+    this.activeVoiceGains.add(vca);
     const attackSec = Math.max(0.002, synth.ampEnv.attack);
     const decaySec = Math.max(0.03, ampDecay);
     // Multi-beat extended notes automatically sustain at a rich audible level (>= 0.72)
@@ -1318,9 +1447,12 @@ export class GrooveboxAudioEngine {
 
     if (activeSourceNodes.length > 0) {
       activeSourceNodes[0].onended = () => {
+        this.activeVoiceGains.delete(vca);
         filter.disconnect();
         vca.disconnect();
       };
+    } else {
+      this.activeVoiceGains.delete(vca);
     }
   }
 

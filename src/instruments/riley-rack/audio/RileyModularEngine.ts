@@ -2017,6 +2017,35 @@ export class RileyModularEngine {
   }
 
   /**
+   * Emergency All-Notes-Off / Audio Panic:
+   * Immediately stops all active voices, flushes the Time Lag Accumulator tape loop,
+   * and silences any ringing voice FX or thunder tails.
+   */
+  public panic(): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'closed') return;
+    const now = ctx.currentTime;
+
+    for (const handle of this.activeVoicesByTrack.values()) {
+      handle.stopAt(now);
+    }
+    this.activeVoicesByTrack.clear();
+
+    this.clearTape();
+
+    if (this.masterGain) {
+      try {
+        this.masterGain.gain.cancelScheduledValues(now);
+        this.masterGain.gain.setValueAtTime(0.0001, now);
+        const targetVol = Math.max(0, Math.min(1, this.patch.masterVol ?? 0.85));
+        this.masterGain.gain.setTargetAtTime(targetVol, now + 0.05, 0.02);
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  /**
    * Section 1.1: Complete lifecycle teardown (`engine.dispose()`)
    */
   public async dispose(): Promise<void> {

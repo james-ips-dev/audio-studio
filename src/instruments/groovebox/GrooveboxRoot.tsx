@@ -25,6 +25,7 @@ import { SynthEngineTab } from './components/tabs/SynthEngineTab';
 import {
   applyAnswerMeCoPlay,
   computeEuclideanSteps,
+  createEmptyProject,
   createEmptyStep,
   createStarterProject,
   getScaleNotes,
@@ -36,6 +37,7 @@ import type {
   GrooveDeckTab,
   InsertFxType,
   ProSynthConfig,
+  RecordMode,
   StepData,
   TrackConfig,
 } from './types';
@@ -96,6 +98,9 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordMode, setRecordMode] = useState<RecordMode>('both');
+  const [dragExtendMode, setDragExtendMode] = useState<boolean>(true);
+  const [confirmNewOpen, setConfirmNewOpen] = useState<boolean>(false);
   const [isWavRecording, setIsWavRecording] = useState<boolean>(false);
   const [pLockLatch, setPLockLatch] = useState<boolean>(false);
   const [selectedStep, setSelectedStep] = useState<{
@@ -123,6 +128,7 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
   const projectRef = useRef<GrooveboxProject>(project);
   const focusedTrackRef = useRef<number>(focusedTrackIndex);
   const isRecordingRef = useRef<boolean>(isRecording);
+  const recordModeRef = useRef<RecordMode>(recordMode);
   const currentStepRef = useRef<number>(currentGlobalStep);
 
   useEffect(() => {
@@ -137,6 +143,10 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  useEffect(() => {
+    recordModeRef.current = recordMode;
+  }, [recordMode]);
 
   useEffect(() => {
     currentStepRef.current = currentGlobalStep;
@@ -205,6 +215,9 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
       isAudioActive: () => {
         const ctx = engine.getAudioContext();
         return Boolean(ctx && ctx.state === 'running' && engine.isEnginePlaying());
+      },
+      panic: () => {
+        engine.panic();
       },
     });
     // Do NOT trigger suspendAndCleanup on unmount in dev StrictMode or re-renders
@@ -301,7 +314,11 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
       for (const n of midiNotes) {
         engine.triggerLiveNote(trackIndex, n, velocity, 0.28);
       }
-      if (isRecordingRef.current && isPlaying) {
+      if (
+        isRecordingRef.current &&
+        isPlaying &&
+        (recordModeRef.current === 'notes' || recordModeRef.current === 'both')
+      ) {
         const stepIdx = currentStepRef.current;
         setProject((prev) => {
           const patId = prev.activePatternId;
@@ -517,6 +534,7 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
         project={project}
         isPlaying={isPlaying}
         isRecording={isRecording}
+        recordMode={recordMode}
         isWavRecording={isWavRecording}
         pLockLatch={pLockLatch}
         selectedStep={selectedStep}
@@ -527,6 +545,9 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
         onConnectMidi={handleConnectMidi}
         onTogglePlay={handleTogglePlay}
         onToggleRecord={() => setIsRecording((v) => !v)}
+        onRecordModeChange={setRecordMode}
+        onNewProject={() => setConfirmNewOpen(true)}
+        onPanic={() => engine.panic()}
         onToggleWavRecord={handleToggleWavRecord}
         onTogglePLockLatch={() => setPLockLatch((v) => !v)}
         onModeChange={(mode: AppMode) =>
@@ -665,7 +686,9 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
           currentGlobalStep={currentGlobalStep}
           isPlaying={isPlaying}
           pLockLatch={pLockLatch}
+          dragExtendMode={dragExtendMode}
           selectedStep={selectedStep}
+          onToggleDragExtendMode={() => setDragExtendMode((v) => !v)}
           onSelectTrack={setFocusedTrackIndex}
           onSelectBar={(b) => {
             setAutoFollowBar(false);
@@ -874,18 +897,80 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
                 updater: (prev: ProSynthConfig) => ProSynthConfig,
                 presetNameOverride?: string
               ) =>
-                setProject((prev) => ({
-                  ...prev,
-                  tracks: prev.tracks.map((t, i) =>
-                    i === trackIndex
-                      ? {
-                          ...t,
-                          presetName: presetNameOverride ?? t.presetName,
-                          synth: updater(t.synth),
-                        }
-                      : t
-                  ),
-                }))
+                setProject((prev) => {
+                  const targetTrk = prev.tracks[trackIndex];
+                  const nextSynth = targetTrk
+                    ? updater(targetTrk.synth)
+                    : undefined;
+
+                  let nextPatterns = prev.patterns;
+                  if (
+                    targetTrk &&
+                    nextSynth &&
+                    isRecordingRef.current &&
+                    isPlaying &&
+                    (recordModeRef.current === 'motion' ||
+                      recordModeRef.current === 'both')
+                  ) {
+                    const motionLocks: Record<string, number> = {};
+                    if (nextSynth.filter.cutoff !== targetTrk.synth.filter.cutoff) {
+                      motionLocks.cutoff = nextSynth.filter.cutoff;
+                    }
+                    if (
+                      nextSynth.filter.resonance !==
+                      targetTrk.synth.filter.resonance
+                    ) {
+                      motionLocks.resonance = nextSynth.filter.resonance;
+                    }
+                    if (nextSynth.osc2.fmDepth !== targetTrk.synth.osc2.fmDepth) {
+                      motionLocks.fmDirt = nextSynth.osc2.fmDepth;
+                    }
+                    if (nextSynth.ampEnv.decay !== targetTrk.synth.ampEnv.decay) {
+                      motionLocks.ampDecay = nextSynth.ampEnv.decay;
+                    }
+
+                    if (Object.keys(motionLocks).length > 0) {
+                      const patId = prev.activePatternId;
+                      const pat = prev.patterns[patId];
+                      if (pat) {
+                        const stepIdx = currentStepRef.current;
+                        const nextTrkSeqs = pat.tracks.map((seq) => {
+                          if (seq.trackIndex !== trackIndex) return seq;
+                          const localIdx = stepIdx % seq.lengthSteps;
+                          return {
+                            ...seq,
+                            steps: seq.steps.map((s, idx) =>
+                              idx === localIdx
+                                ? {
+                                    ...s,
+                                    pLocks: { ...s.pLocks, ...motionLocks },
+                                  }
+                                : s
+                            ),
+                          };
+                        });
+                        nextPatterns = {
+                          ...prev.patterns,
+                          [patId]: { ...pat, tracks: nextTrkSeqs },
+                        };
+                      }
+                    }
+                  }
+
+                  return {
+                    ...prev,
+                    patterns: nextPatterns,
+                    tracks: prev.tracks.map((t, i) =>
+                      i === trackIndex && nextSynth
+                        ? {
+                            ...t,
+                            presetName: presetNameOverride ?? t.presetName,
+                            synth: nextSynth,
+                          }
+                        : t
+                    ),
+                  };
+                })
               }
               onWriteStepPLock={handleWriteStepPLock}
               onAuditionHit={(trackIndex) => {
@@ -964,6 +1049,12 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
               onTriggerKaossNote={(trkIdx, midi, vel) =>
                 handleTriggerLiveAndRecord(trkIdx, [midi], vel)
               }
+              onUpdatePerformance={(updater) =>
+                setProject((prev) => ({
+                  ...prev,
+                  performance: updater(prev.performance),
+                }))
+              }
             />
           )}
 
@@ -1038,6 +1129,8 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
               visibleBar={visibleBar}
               currentGlobalStep={currentGlobalStep}
               isPlaying={isPlaying}
+              dragExtendMode={dragExtendMode}
+              onToggleDragExtendMode={() => setDragExtendMode((v) => !v)}
               onUpdateStepData={handleUpdateStepData}
               onAnswerMeCoPlay={(trackIndex) =>
                 commitProjectChange((prev) => {
@@ -1166,6 +1259,21 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmNewOpen}
+        title="Start New Empty Project?"
+        message="This will clear all 16 patterns (A1–D4) across all 8 tracks to a blank init state. You can use Undo (Ctrl+Z) to restore if needed."
+        variant="warning"
+        confirmLabel="Create Empty Project"
+        cancelLabel="Cancel"
+        accentColor="#10B981"
+        onConfirm={() => {
+          setConfirmNewOpen(false);
+          commitProjectChange((prev) => createEmptyProject(prev.mode));
+        }}
+        onCancel={() => setConfirmNewOpen(false)}
+      />
 
       <ConfirmModal
         open={Boolean(modalAlert)}

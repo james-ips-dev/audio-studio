@@ -1743,3 +1743,52 @@ export function createStarterProject(specId: string = 'space-mission'): Groovebo
     },
   };
 }
+
+/**
+ * Creates a completely blank/empty Groovebox project with all 16 patterns (A1..D4)
+ * cleared to 0 active steps across all 8 tracks.
+ */
+export function createEmptyProject(mode: 'beginner' | 'pro' = 'beginner'): GrooveboxProject {
+  const base = createStarterProject('space-mission');
+  const emptyPatterns: Record<string, Pattern> = {};
+
+  for (const patId of PATTERN_BANK_IDS) {
+    emptyPatterns[patId] = {
+      id: patId,
+      bars: 2,
+      tracks: TRACK_IDENTITIES.map((meta) => ({
+        trackIndex: meta.index,
+        lengthSteps: 16,
+        phraseResetBars: 0,
+        subdivision: '1/16',
+        steps: Array.from({ length: 64 }, () => createEmptyStep(meta.defaultNote)),
+      })),
+    };
+  }
+
+  return {
+    ...base,
+    id: `proj_empty_${Date.now()}`,
+    name: 'New Init Project',
+    updatedAt: Date.now(),
+    mode,
+    bpm: 120,
+    swing: 0,
+    grooveTemplate: 'Straight',
+    activePatternId: 'A1',
+    patterns: emptyPatterns,
+    tracks: base.tracks.map((t) => ({
+      ...t,
+      mixer: {
+        ...t.mixer,
+        volume: 0.78,
+        pan: 0,
+        mute: false,
+        solo: false,
+      },
+    })),
+    songTimeline: [
+      { id: 'blk_init_1', patternId: 'A1', repeats: 2, mutedTracks: [] },
+    ],
+  };
+}

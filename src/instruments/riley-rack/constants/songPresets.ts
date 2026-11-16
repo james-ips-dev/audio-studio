@@ -1693,3 +1693,51 @@ export const RILEY_FACTORY_SONG_PRESETS: RileySongPatch[] = [
 export function cloneRileySongPatch(patch: RileySongPatch): RileySongPatch {
   return JSON.parse(JSON.stringify(patch)) as RileySongPatch;
 }
+
+/**
+ * Creates a completely clean, empty initialization patch for RileyRack 800
+ * with 0 active steps across all 8 voices, 0 patch cables, and Biosphere/Evolve disabled.
+ */
+export function createEmptyRileySongPatch(ecoMode?: boolean): RileySongPatch {
+  const base = cloneRileySongPatch(RILEY_FACTORY_SONG_PRESETS[0]);
+  return {
+    ...base,
+    id: `user-init-${Date.now()}`,
+    name: 'Init Empty Rack',
+    nameJa: '初期ブランク・ラック (Empty)',
+    vibe: 'Clean initialized rack with 0 active steps and 0 patch cables.',
+    vibeJa: '全8ボイスのステップとパッチケーブルを初期化した空のプロジェクト。',
+    isFactory: false,
+    ecoMode: ecoMode ?? detectLowSpecDevice(),
+    cables: [],
+    evolve: {
+      ...base.evolve,
+      enabled: false,
+    },
+    biosphere: {
+      ...createDefaultBiosphereState(),
+      enabled: false,
+      rain: 0,
+      stream: 0,
+      waves: 0,
+      wind: 0,
+      thunderProb: 0,
+    },
+    voices: base.voices.map((v) => ({
+      ...v,
+      length: 16,
+      speed: 1,
+      octave: 0,
+      mute: false,
+      solo: false,
+      pan: 0,
+      tapeSend: 0.25,
+      fx: createDefaultVoiceFxRack(),
+      steps: Array.from({ length: 16 }, () => ({
+        degree: 0,
+        active: false,
+      })),
+    })),
+  };
+}
+

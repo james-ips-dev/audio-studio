@@ -43,7 +43,7 @@ export const Row4BiosphereLab: React.FC<Row4BiosphereLabProps> = ({
   const bio = patch.params.biosphere ?? {};
 
   return (
-    <div className="rounded-xl border border-emerald-500/25 bg-[#11161F] p-3 flex flex-col justify-between gap-2">
+    <div className="rounded-xl border border-emerald-500/25 bg-[#11161F] studio-module-bio p-3 flex flex-col justify-between gap-2">
       {/* Header & Quick Scene Macros */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-white/10">
         <div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { BipolarPanSlider } from '../../../../shared-ui/BipolarPanSlider';
 import { RotaryKnob } from '../../../../shared-ui/RotaryKnob';
 import type { GrooveboxAudioEngine } from '../../audio/GrooveboxAudioEngine';
 import type { GrooveboxProject, InsertFxType, TrackConfig } from '../../types';
@@ -56,7 +57,7 @@ export const MixerFxTab: React.FC<MixerFxTabProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-y-auto">
       {/* Left: 8 Multi-Touch Channel Strips */}
-      <div className="lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-synth lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div className="grid grid-cols-8 gap-1.5 h-full">
           {project.tracks.map((trk, idx) => {
             const isSelected = focusedTrackIndex === idx;
@@ -118,33 +119,17 @@ export const MixerFxTab: React.FC<MixerFxTabProps> = ({
                 </div>
 
                 {/* Pan & Reverb/Delay Sends */}
-                <div className="w-full space-y-1 my-1 font-studio-mono text-[8px] text-gray-400">
-                  <div className="flex justify-between">
-                    <span>PAN</span>
-                    <span className="text-white">
-                      {trk.mixer.pan === 0
-                        ? 'C'
-                        : trk.mixer.pan < 0
-                          ? `L${Math.round(Math.abs(trk.mixer.pan) * 100)}`
-                          : `R${Math.round(trk.mixer.pan * 100)}`}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={-1}
-                    max={1}
-                    step={0.05}
+                <div className="w-full space-y-1.5 my-1 font-studio-mono text-[8px] text-gray-400">
+                  <BipolarPanSlider
                     value={trk.mixer.pan}
-                    onDoubleClick={() =>
-                      onUpdateTrackMixer(idx, (m) => ({ ...m, pan: 0 }))
-                    }
-                    onChange={(e) =>
+                    accentColor={trk.color}
+                    compact
+                    onChange={(pan) =>
                       onUpdateTrackMixer(idx, (m) => ({
                         ...m,
-                        pan: Number(e.target.value),
+                        pan,
                       }))
                     }
-                    className="w-full accent-sky-400 cursor-pointer"
                   />
 
                   <div className="flex justify-between">
@@ -201,7 +186,7 @@ export const MixerFxTab: React.FC<MixerFxTabProps> = ({
       </div>
 
       {/* Right: Per-Channel 6-Unit Insert FX Rack & 3-Stage Master Bus Strip */}
-      <div className="lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-fx lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between border-b border-white/10 pb-1 mb-1.5">
             <span

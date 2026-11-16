@@ -92,13 +92,17 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
 • ${language === 'ja' ? '右クリックまたはAlt+クリックで解除・デイジーチェーン' : 'Right-click or Alt+Click for cable options (Unplug & Daisy-Chain)'}
 • ${language === 'ja' ? `Shift+クリックで即時解除（${totalConnected}本接続中）` : `Shift+Click to instantly unplug (${totalConnected} connected)`}`}
         className={`group relative flex flex-col items-center gap-0.5 px-1 py-0.5 rounded transition-transform cursor-pointer ${
-          isValidTarget ? 'scale-110 animate-pulse' : 'hover:scale-105'
+          isValidTarget
+            ? 'scale-115 z-20'
+            : activeFromJack && direction === 'out' && !isSourceActive
+              ? 'opacity-45 hover:opacity-80'
+              : 'hover:scale-105'
         }`}
       >
         {/* 3.5mm Eurorack Nut & Socket */}
         <span
           style={{
-            borderColor: color,
+            borderColor: isValidTarget ? '#34D399' : color,
             boxShadow:
               isSourceActive || totalConnected > 0
                 ? `0 0 8px ${color}88`
@@ -106,7 +110,9 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
             backgroundColor:
               direction === 'out' ? `${color}28` : 'rgba(10,13,18,0.9)',
           }}
-          className="w-4 h-4 rounded-full border-2 flex items-center justify-center relative"
+          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center relative ${
+            isValidTarget ? 'patch-jack-target-glow' : ''
+          }`}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-black border border-white/30" />
           {totalConnected > 0 && (
@@ -121,7 +127,11 @@ export const PatchJackButton: React.FC<PatchJackButtonProps> = ({
 
         <span
           className={`font-studio-mono text-[8px] font-bold tracking-tight uppercase leading-none ${
-            direction === 'out' ? 'text-sky-200' : 'text-gray-400'
+            isValidTarget
+              ? 'text-emerald-300 font-extrabold'
+              : direction === 'out'
+                ? 'text-sky-200'
+                : 'text-gray-400'
           }`}
         >
           {label}

@@ -29,6 +29,8 @@ export interface Aether8HeaderBarProps {
   onDeleteSavedPatch: (id: string) => void;
   onExportJson: () => void;
   onImportJsonFile: (file: File) => void;
+  onNewPatch: () => void;
+  onPanic: () => void;
 }
 
 export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
@@ -55,6 +57,8 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
   onDeleteSavedPatch,
   onExportJson,
   onImportJsonFile,
+  onNewPatch,
+  onPanic,
 }) => {
   const { t } = useTranslation();
   const [vaultOpen, setVaultOpen] = useState(false);
@@ -124,6 +128,16 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
           }`}
         >
           {isPlaying ? t('transport.halt', '■ HALT SYSTEM') : t('transport.engage', '▶ ENGAGE AETHER-8')}
+        </button>
+
+        {/* !PANIC All Notes Off Button */}
+        <button
+          type="button"
+          onClick={onPanic}
+          title="All Notes Off / Flush Delay & Reverb Feedback Loops"
+          className="h-8 px-2 rounded-lg font-studio-mono text-[10px] font-extrabold tracking-wider bg-rose-500/15 hover:bg-rose-500 hover:text-black text-rose-300 border border-rose-500/40 transition-colors cursor-pointer"
+        >
+          !PANIC
         </button>
 
         {/* BPM Control (30-130 BPM) */}
@@ -319,6 +333,16 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
           {isWavRecording ? t('transport.stopWav', '■ STOP .WAV') : t('transport.recWav', '● REC .WAV')}
         </button>
 
+        {/* New Empty Patch Button */}
+        <button
+          type="button"
+          onClick={onNewPatch}
+          title="Initialize a completely blank AETHER-8 patch (0 active steps, 0 cables)"
+          className="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 font-studio-mono text-[11px] font-bold text-amber-200 cursor-pointer"
+        >
+          📄 NEW
+        </button>
+
         {/* Vault Save / Load Popover */}
         <div className="relative">
           <button
@@ -349,7 +373,17 @@ export const Aether8HeaderBar: React.FC<Aether8HeaderBarProps> = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-1.5 font-studio-mono text-[10px]">
+              <div className="grid grid-cols-4 gap-1.5 font-studio-mono text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVaultOpen(false);
+                    onNewPatch();
+                  }}
+                  className="py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 font-bold cursor-pointer"
+                >
+                  📄 NEW
+                </button>
                 <button
                   type="button"
                   onClick={onSaveToVault}

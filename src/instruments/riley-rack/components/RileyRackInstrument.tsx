@@ -8,6 +8,7 @@ import React, {
 import { IncompatiblePatchError } from '../../../core/storageFactory';
 import type { InstrumentComponentProps } from '../../../core/types';
 import { useTranslation } from '../../../core/useTranslation';
+import { BipolarPanSlider } from '../../../shared-ui/BipolarPanSlider';
 import { ConfirmModal } from '../../../shared-ui/ConfirmModal';
 import { RotaryKnob } from '../../../shared-ui/RotaryKnob';
 import { LiveStereoWavRecorder } from '../../../shared-ui/WavExporter';
@@ -20,6 +21,7 @@ import {
 } from '../constants/scales';
 import {
   cloneRileySongPatch,
+  createEmptyRileySongPatch,
   RILEY_FACTORY_SONG_PRESETS,
 } from '../constants/songPresets';
 import {
@@ -127,6 +129,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
   // Save As Dialog State
   const [saveAsModalOpen, setSaveAsModalOpen] = useState<boolean>(false);
   const [saveAsNameInput, setSaveAsNameInput] = useState<string>('');
+  const [confirmNewOpen, setConfirmNewOpen] = useState<boolean>(false);
   const [activeVoiceTab, setActiveVoiceTab] = useState<'synth' | 'fx'>('synth');
   const [activeVoiceFxTab, setActiveVoiceFxTab] = useState<'echo' | 'delay' | 'flanger' | 'phaser' | 'compressor'>('echo');
   const [toastMessage, setToastMessage] = useState<{
@@ -216,6 +219,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
           await engine.dispose();
         },
         isAudioActive: () => engine.isEnginePlaying(),
+        panic: () => engine.panic(),
       });
     }
   }, [engine, registerHandle]);
@@ -627,7 +631,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
           ==================================================================== */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-2.5 relative z-10">
         {/* MODULE 1 (5 Cols): Master Clock, Quantizer & Patch Manager */}
-        <section className="xl:col-span-5 rounded-xl border border-amber-500/25 bg-[#10141E] p-3 flex flex-col justify-between gap-2.5">
+        <section className="xl:col-span-5 rounded-xl border border-amber-500/25 bg-[#10141E] studio-module-seq p-3 flex flex-col justify-between gap-2.5">
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5 gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
@@ -694,6 +698,15 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
               {isPlaying
                 ? t('riley.stop', '■ STOP RACK')
                 : t('riley.run', '▶ RUN RACK')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => engine.panic()}
+              title="All Notes Off / Flush Time Lag Tape Loop & Ringing Voices"
+              className="h-8 px-2 rounded-lg font-studio-mono text-[10px] font-extrabold tracking-wider bg-rose-500/15 hover:bg-rose-500 hover:text-black text-rose-300 border border-rose-500/40 transition-colors cursor-pointer"
+            >
+              !PANIC
             </button>
 
             <div className="flex items-center bg-black/50 rounded-lg border border-white/10 p-0.5 flex-1 min-w-[180px]">
@@ -772,8 +785,16 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
             </div>
           </div>
 
-          {/* Patch Manager Action Bar: SAVE / SAVE AS / DEL / EXPORT / IMPORT */}
+          {/* Patch Manager Action Bar: NEW / SAVE / SAVE AS / DEL / EXPORT / IMPORT */}
           <div className="flex flex-wrap items-center gap-1 font-studio-mono text-[10px]">
+            <button
+              type="button"
+              onClick={() => setConfirmNewOpen(true)}
+              title="Initialize a completely blank RileyRack 800 patch (0 active steps, 0 cables)"
+              className="px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-200 font-bold cursor-pointer"
+            >
+              📄 NEW
+            </button>
             <button
               type="button"
               onClick={() => void handleSaveCurrentPatch()}
@@ -1021,7 +1042,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
         </section>
 
         {/* MODULE 2 (3 Cols): Generative Evolve Engine */}
-        <section className="xl:col-span-3 rounded-xl border border-emerald-500/25 bg-[#10141E] p-3 flex flex-col justify-between gap-2.5">
+        <section className="xl:col-span-3 rounded-xl border border-emerald-500/25 bg-[#10141E] studio-module-mod p-3 flex flex-col justify-between gap-2.5">
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -1169,7 +1190,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
         </section>
 
         {/* MODULE 3 (4 Cols): Time Lag Accumulator // Magnetic Tape Loop */}
-        <section className="xl:col-span-4 rounded-xl border border-sky-500/25 bg-[#10141E] p-3 flex flex-col justify-between gap-2">
+        <section className="xl:col-span-4 rounded-xl border border-sky-500/25 bg-[#10141E] studio-module-fx p-3 flex flex-col justify-between gap-2">
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-400" />
@@ -1318,7 +1339,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                     }
                     className={`h-6 px-2 rounded-full font-studio-mono text-[10px] font-bold border flex items-center gap-1 cursor-pointer ${
                       activeSourceJack
-                        ? 'bg-sky-500/30 border-sky-300 text-white animate-pulse'
+                        ? 'bg-emerald-500/30 border-emerald-300 text-emerald-200 patch-jack-target-glow'
                         : isPatched
                           ? 'bg-sky-500/25 border-sky-400 text-sky-200'
                           : 'bg-black/60 border-white/20 text-gray-300 hover:border-sky-400'
@@ -1441,36 +1462,23 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                     className="w-full accent-amber-400 cursor-pointer"
                   />
 
-                  <div className="flex justify-between text-[9px] text-gray-400">
-                    <span>PAN</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateVoice(idx, (cur) => ({ ...cur, pan: 0 }))
+                  <div className="pt-0.5">
+                    <div className="flex justify-between text-[9px] text-gray-400 mb-0.5">
+                      <span>PAN</span>
+                    </div>
+                    <BipolarPanSlider
+                      value={v.pan}
+                      accentColor={v.color}
+                      compact
+                      title={`Voice ${idx + 1} Pan (Shift+Drag or Shift+Scroll for 10x Fine)`}
+                      onChange={(pan) =>
+                        updateVoice(idx, (cur) => ({
+                          ...cur,
+                          pan,
+                        }))
                       }
-                      className="text-sky-300 hover:underline cursor-pointer"
-                    >
-                      {v.pan === 0
-                        ? 'C'
-                        : v.pan < 0
-                          ? `L${Math.round(Math.abs(v.pan) * 100)}`
-                          : `R${Math.round(v.pan * 100)}`}
-                    </button>
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={-1}
-                    max={1}
-                    step={0.02}
-                    value={v.pan}
-                    onChange={(e) =>
-                      updateVoice(idx, (cur) => ({
-                        ...cur,
-                        pan: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full accent-sky-400 cursor-pointer"
-                  />
 
                   <div className="flex justify-between text-[9px] text-gray-400">
                     <span>TAPE SEND</span>
@@ -1534,7 +1542,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                     ? `${voice.color}99`
                     : 'rgba(255,255,255,0.1)',
                 }}
-                className="rounded-xl border bg-[#10141E] p-2.5 flex flex-col gap-2 transition-colors"
+                className="rounded-xl border bg-[#10141E] studio-module-seq p-2.5 flex flex-col gap-2 transition-colors"
               >
                 {/* Voice Card Header */}
                 <div className="flex items-center justify-between gap-1 border-b border-white/10 pb-1.5">
@@ -1628,7 +1636,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                       }
                       className={`h-5 px-1.5 rounded-full border flex items-center gap-0.5 cursor-pointer ${
                         activeSourceJack
-                          ? 'bg-amber-500/30 border-amber-300 text-white animate-pulse'
+                          ? 'bg-emerald-500/30 border-emerald-300 text-emerald-200 patch-jack-target-glow'
                           : clkCable
                             ? 'bg-amber-500/25 border-amber-400 text-amber-200'
                             : 'bg-black/60 border-white/20 text-gray-400 hover:border-amber-400'
@@ -1892,7 +1900,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
           ==================================================================== */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-2.5 relative z-10 pb-4">
         {/* MODULE 4 (7 Cols): Tabbed Voice Sound Designer */}
-        <section className="xl:col-span-7 rounded-xl border border-amber-500/25 bg-[#10141E] p-3 flex flex-col justify-between gap-2.5">
+        <section className="xl:col-span-7 rounded-xl border border-amber-500/25 bg-[#10141E] studio-module-synth p-3 flex flex-col justify-between gap-2.5">
           {/* Header & Voice 1-8 Tabs */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
             <div className="flex items-center gap-1.5">
@@ -3236,7 +3244,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
         </section>
 
         {/* MODULE 5 (5 Cols): Biosphere // Synced Nature Soundscape */}
-        <section className="xl:col-span-5 rounded-xl border border-teal-500/25 bg-[#10141E] p-3 flex flex-col justify-between gap-2.5">
+        <section className="xl:col-span-5 rounded-xl border border-teal-500/25 bg-[#10141E] studio-module-bio p-3 flex flex-col justify-between gap-2.5">
           <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-white/10 pb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-400" />
@@ -3626,7 +3634,7 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
                 }
                 className={`h-5 px-1.5 rounded-full border flex items-center gap-0.5 cursor-pointer text-[8px] ${
                   activeSourceJack
-                    ? 'bg-amber-500/30 border-amber-300 text-white animate-pulse'
+                    ? 'bg-emerald-500/30 border-emerald-300 text-emerald-200 patch-jack-target-glow'
                     : patch.cables.some((c) => c.to === 'bio-thunder-trig')
                       ? 'bg-amber-500/25 border-amber-400 text-amber-200'
                       : 'bg-black/60 border-white/20 text-gray-400 hover:border-amber-400'
@@ -3748,6 +3756,30 @@ const RileyRackContent: React.FC<Partial<InstrumentComponentProps>> = ({
           </div>
         </div>
       )}
+
+      {/* ====================================================================
+          NEW EMPTY RACK CONFIRMATION MODAL
+          ==================================================================== */}
+      <ConfirmModal
+        open={confirmNewOpen}
+        title={isJa ? '新規ブランク・ラックの初期化' : 'Initialize New Empty Rack?'}
+        message={
+          isJa
+            ? '全8ボイスのステップとパッチケーブルをすべてクリアし、空の初期状態にリセットします。よろしいですか？'
+            : 'This will clear all 8 polymetric voice patterns to 0 active steps, unplug all patch cables, and disable Biosphere/Evolve.'
+        }
+        confirmLabel={isJa ? '初期化する' : 'New Empty Rack'}
+        variant="danger"
+        onConfirm={() => {
+          engine.panic();
+          setPatch(createEmptyRileySongPatch(ecoMode));
+          setActiveSourceJack(null);
+          setDanglingSourceCoords(null);
+          setPointerCoords(null);
+          setConfirmNewOpen(false);
+        }}
+        onCancel={() => setConfirmNewOpen(false)}
+      />
 
       {/* ====================================================================
           ALERT / TOAST MODAL

@@ -892,6 +892,60 @@ export class Aether8AudioEngine {
     this.syncContinuousNodes();
   }
 
+  /**
+   * Emergency All-Notes-Off / Audio Panic:
+   * Immediately halts all active oscillators, clears delay & reverb feedback loops,
+   * zeroes continuous drone/noise/biosphere buses, and restores clean graph state.
+   */
+  public panic(): void {
+    this.sustainedStepsRemaining = Array(8).fill(0);
+    const ctx = this.audioCtx;
+    if (!ctx || ctx.state === 'closed') return;
+    const now = ctx.currentTime;
+
+    const nodesToZero: (GainNode | null)[] = [
+      this.masterGain,
+      this.tapeDelayFeedback,
+      this.tapeDelayWet,
+      this.cavernReverbReturn,
+      this.cavernReverbEcoFb,
+      this.droneBusGain,
+      this.subBusGain,
+      this.noiseBusGain,
+      this.zdfBusGain,
+      this.foldFxBusGain,
+      this.bioMasterBus,
+    ];
+
+    for (const g of nodesToZero) {
+      if (g) {
+        try {
+          g.gain.cancelScheduledValues(now);
+          g.gain.setValueAtTime(0.0001, now);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    if (this.directChannels) {
+      for (const ch of Object.values(this.directChannels)) {
+        try {
+          ch.fader.gain.cancelScheduledValues(now);
+          ch.fader.gain.setValueAtTime(0.0001, now);
+          ch.revSend.gain.cancelScheduledValues(now);
+          ch.revSend.gain.setValueAtTime(0.0001, now);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    window.setTimeout(() => {
+      this.syncContinuousNodes();
+    }, 65);
+  }
+
   private schedulerTick(): void {
     const ctx = this.audioCtx;
     if (!ctx || !this.isPlaying) return;

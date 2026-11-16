@@ -46,7 +46,7 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-y-auto">
       {/* Left/Center: Per-Track Clip Launch Matrix + Master Scene Launch Column */}
-      <div className="lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      <div className="studio-module-seq lg:col-span-8 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
         <div className="flex items-center justify-between mb-1.5">
           <span className="font-studio-mono text-[10px] font-bold uppercase text-rose-400">
             {isPro
@@ -144,7 +144,7 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({
       </div>
 
       {/* Right: Dual-Deck A/B Pattern Crossfader, Punch-In FX & Capture */}
-      <div className="lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between space-y-2">
+      <div className="studio-module-fx lg:col-span-4 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between space-y-2">
         {/* Dual-Deck A/B Pattern Crossfader */}
         <div className="bg-black/35 p-2 rounded-lg border border-white/5 space-y-1.5">
           <div className="flex items-center justify-between font-studio-mono text-[10px]">

@@ -8,12 +8,13 @@ import {
   SCALE_DEFINITIONS,
   STARTER_PROJECT_SPECS,
 } from '../presets/factoryPresets';
-import type { AppMode, GrooveboxProject } from '../types';
+import type { AppMode, GrooveboxProject, RecordMode } from '../types';
 
 export interface TransportBarProps {
   project: GrooveboxProject;
   isPlaying: boolean;
   isRecording: boolean;
+  recordMode: RecordMode;
   isWavRecording: boolean;
   pLockLatch: boolean;
   selectedStep: { trackIndex: number; stepIndex: number } | null;
@@ -24,6 +25,9 @@ export interface TransportBarProps {
   onConnectMidi: () => void;
   onTogglePlay: () => void;
   onToggleRecord: () => void;
+  onRecordModeChange: (mode: RecordMode) => void;
+  onNewProject: () => void;
+  onPanic: () => void;
   onToggleWavRecord: () => void;
   onTogglePLockLatch: () => void;
   onModeChange: (mode: AppMode) => void;
@@ -56,6 +60,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   project,
   isPlaying,
   isRecording,
+  recordMode,
   isWavRecording,
   pLockLatch,
   selectedStep,
@@ -66,6 +71,9 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   onConnectMidi,
   onTogglePlay,
   onToggleRecord,
+  onRecordModeChange,
+  onNewProject,
+  onPanic,
   onToggleWavRecord,
   onTogglePLockLatch,
   onModeChange,
@@ -174,17 +182,45 @@ export const TransportBar: React.FC<TransportBarProps> = ({
           <span>{isPlaying ? t('transport.stop', '■ STOP') : t('transport.play', '▶ PLAY')}</span>
         </button>
 
+        <div className="flex items-center bg-black/45 rounded-lg border border-white/10 h-9 p-0.5 gap-0.5">
+          <button
+            type="button"
+            onClick={onToggleRecord}
+            title="Overdub Live Note & Motion Recording (Shortcut: R)"
+            className={`h-7 px-2 rounded-md font-studio-mono text-xs font-bold transition-all cursor-pointer ${
+              isRecording
+                ? 'bg-rose-500 text-black shadow-[0_0_12px_rgba(244,63,94,0.6)]'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300'
+            }`}
+          >
+            ● REC
+          </button>
+          <select
+            aria-label="Record Target Mode"
+            value={recordMode}
+            onChange={(e) => onRecordModeChange(e.target.value as RecordMode)}
+            title="Record Mode: Record Notes only, Motion (Knob P-Locks) only, or Both"
+            className="h-7 px-1 rounded bg-transparent font-studio-mono text-[10px] font-bold text-rose-300 cursor-pointer"
+          >
+            <option value="both" className="bg-[#12151E] text-white">
+              NOTES+MOTION
+            </option>
+            <option value="notes" className="bg-[#12151E] text-white">
+              NOTES ONLY
+            </option>
+            <option value="motion" className="bg-[#12151E] text-white">
+              MOTION ONLY
+            </option>
+          </select>
+        </div>
+
         <button
           type="button"
-          onClick={onToggleRecord}
-          title="Overdub Live Note & Motion Recording (Shortcut: R)"
-          className={`h-9 px-2.5 rounded-lg font-studio-mono text-xs font-bold transition-all cursor-pointer border ${
-            isRecording
-              ? 'bg-rose-500 text-black border-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.6)]'
-              : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/10'
-          }`}
+          onClick={onPanic}
+          title="Emergency All Notes Off (!PANIC) — Kills all active voices and delay feedback"
+          className="h-9 px-2 rounded-lg bg-rose-500/15 hover:bg-rose-500 hover:text-black border border-rose-500/40 font-studio-mono text-[10px] font-extrabold text-rose-300 transition-colors cursor-pointer"
         >
-          ● REC
+          !PANIC
         </button>
 
         <button
@@ -506,6 +542,15 @@ export const TransportBar: React.FC<TransportBarProps> = ({
           </optgroup>
         </select>
 
+        <button
+          type="button"
+          onClick={onNewProject}
+          title="Start a New Empty Project (Clears all patterns to blank)"
+          className="h-9 px-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/40 font-studio-mono text-xs font-bold text-emerald-300 cursor-pointer flex items-center gap-1"
+        >
+          <span>📄 NEW</span>
+        </button>
+
         {/* Project Menu Dropdown */}
         <div className="relative">
           <button
@@ -531,6 +576,17 @@ export const TransportBar: React.FC<TransportBarProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNewProject();
+                      setProjectMenuOpen(false);
+                    }}
+                    className="px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-500/40 text-[10px] font-studio-mono font-bold text-emerald-200 hover:bg-emerald-500/40 cursor-pointer"
+                    title="Initialize a blank project with all empty steps"
+                  >
+                    📄 NEW EMPTY
+                  </button>
                   <button
                     type="button"
                     onClick={onConnectMidi}

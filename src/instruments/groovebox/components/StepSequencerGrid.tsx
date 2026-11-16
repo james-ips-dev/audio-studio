@@ -19,7 +19,9 @@ export interface StepSequencerGridProps {
   currentGlobalStep: number;
   isPlaying: boolean;
   pLockLatch: boolean;
+  dragExtendMode: boolean;
   selectedStep: { trackIndex: number; stepIndex: number } | null;
+  onToggleDragExtendMode: () => void;
   onSelectTrack: (trackIndex: number) => void;
   onSelectBar: (barIndex: number) => void;
   onToggleAutoFollow: () => void;
@@ -79,7 +81,9 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
   currentGlobalStep,
   isPlaying,
   pLockLatch,
+  dragExtendMode,
   selectedStep,
+  onToggleDragExtendMode,
   onSelectTrack,
   onSelectBar,
   onToggleAutoFollow,
@@ -100,7 +104,6 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
   const [euclidOpen, setEuclidOpen] = useState(false);
   const [euclidPulses, setEuclidPulses] = useState(5);
   const [euclidRotation, setEuclidRotation] = useState(0);
-  const [dragExtendMode, setDragExtendMode] = useState(true);
 
   // First-Cell Intent Lock Swipe State & Multi-Beat Tie Drag State
   const swipePaintIntentRef = useRef<boolean | null>(null);
@@ -128,7 +131,7 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
     ];
 
   return (
-    <section className="flex flex-col h-full bg-[#0E1015] border-b border-white/10 px-2.5 py-1.5 select-none overflow-hidden">
+    <section className="studio-module-seq flex flex-col h-full bg-[#0E1015] border-b border-white/10 px-2.5 py-1.5 select-none overflow-hidden">
       {/* Top Sequencer Utility Strip */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-white/[0.07] shrink-0">
         {/* Left: Active Pattern Loop Bars ([1B]..[4B]) & Bar Page Tabs ([BAR 1]..[BAR 4]) */}
@@ -192,7 +195,7 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
 
           <button
             type="button"
-            onClick={() => setDragExtendMode((v) => !v)}
+            onClick={onToggleDragExtendMode}
             className={`px-2 py-1 rounded font-studio-mono text-[10px] font-bold border transition-colors cursor-pointer ${
               dragExtendMode
                 ? 'bg-amber-400/20 text-amber-300 border-amber-400/50'
@@ -200,7 +203,7 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
             }`}
             title={t(
               'seq.tieTooltip',
-              'Shift+Click or toggle Drag mode to create extended multi-beat sustaining notes without retriggering'
+              'Shift+Click or toggle Drag mode to create extended multi-beat sustaining notes without retriggering (Applies to Sequencer & Piano Roll)'
             )}
           >
             {dragExtendMode
@@ -341,7 +344,7 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
       </div>
 
       {/* Beat Ruler Row */}
-      <div className="grid grid-cols-[190px_1fr] sm:grid-cols-[230px_1fr] gap-2 items-center pt-1 pb-0.5 text-[9px] font-studio-mono text-gray-500 shrink-0">
+      <div className="grid grid-cols-[190px_1fr] sm:grid-cols-[230px_1fr] gap-2 items-center px-1.5 pt-1 pb-0.5 text-[9px] font-studio-mono text-gray-500 shrink-0">
         <div className="px-2 uppercase tracking-wider flex items-center justify-between">
           <span>8-TRACK MATRIX</span>
           <span>M / S / VOL</span>
@@ -646,7 +649,7 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
                               ? trk.color
                               : 'rgba(255,255,255,0.08)',
                       }}
-                      className={`relative rounded transition-all flex items-center justify-center border cursor-pointer touch-none-control ${
+                      className={`relative rounded transition-none flex items-center justify-center border cursor-pointer touch-none-control ${
                         isPLockSelected ? 'ring-1 ring-amber-400' : ''
                       }`}
                     >

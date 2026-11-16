@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GrooveboxAudioEngine } from '../../audio/GrooveboxAudioEngine';
 import { getScaleNotes } from '../../presets/factoryPresets';
-import type { GrooveboxProject } from '../../types';
+import type { GrooveboxProject, KaossAxisDest } from '../../types';
 
 export interface KaossPadTabProps {
   project: GrooveboxProject;
@@ -11,6 +11,11 @@ export interface KaossPadTabProps {
     trackIndex: number,
     midiNote: number,
     velocity: number
+  ) => void;
+  onUpdatePerformance?: (
+    updater: (
+      prev: GrooveboxProject['performance']
+    ) => GrooveboxProject['performance']
   ) => void;
 }
 
@@ -22,11 +27,23 @@ interface TrailPoint {
   alpha: number;
 }
 
+const KAOSS_DEST_OPTIONS: { id: KaossAxisDest; label: string }[] = [
+  { id: 'cutoff', label: 'Filter Cutoff' },
+  { id: 'resonance', label: 'Filter Resonance' },
+  { id: 'fmDepth', label: 'OSC 2 → 1 FM Grit' },
+  { id: 'delaySend', label: 'Dub Delay Send / FB' },
+  { id: 'reverbSend', label: 'Space Reverb Wash' },
+  { id: 'pan', label: 'Stereo Pan Sweep' },
+  { id: 'pitch', label: 'Pitch Transpose (±12st)' },
+  { id: 'decay', label: 'Amp Envelope Decay' },
+];
+
 export const KaossPadTab: React.FC<KaossPadTabProps> = ({
   project,
   focusedTrackIndex,
   engine,
   onTriggerKaossNote,
+  onUpdatePerformance,
 }) => {
   const [kaossMode, setKaossMode] = useState<KaossMode>('fx');
   const [selectedTargets, setSelectedTargets] = useState<number[]>([
@@ -38,6 +55,10 @@ export const KaossPadTab: React.FC<KaossPadTabProps> = ({
     x: 0.5,
     y: 0.5,
   });
+
+  const xDest: KaossAxisDest = project.performance.kaossXDest ?? 'cutoff';
+  const yDest: KaossAxisDest = project.performance.kaossYDest ?? 'resonance';
+  const isPro = project.mode === 'pro';
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isPointerDownRef = useRef<boolean>(false);
@@ -104,7 +125,16 @@ export const KaossPadTab: React.FC<KaossPadTabProps> = ({
       trailRef.current.shift();
     }
 
-    engine.setKaossWarp(normX, normY, selectedTargets, routeMaster);
+    const activeXDest = isPro ? xDest : 'cutoff';
+    const activeYDest = isPro ? yDest : 'resonance';
+    engine.setKaossWarp(
+      normX,
+      normY,
+      selectedTargets,
+      routeMaster,
+      activeXDest,
+      activeYDest
+    );
 
     if (kaossMode === 'synth') {
       const now = performance.now();
@@ -147,12 +177,19 @@ export const KaossPadTab: React.FC<KaossPadTabProps> = ({
     );
   };
 
+  const xLabel =
+    KAOSS_DEST_OPTIONS.find((o) => o.id === (isPro ? xDest : 'cutoff'))?.label.toUpperCase() ??
+    'CUTOFF FREQ';
+  const yLabel =
+    KAOSS_DEST_OPTIONS.find((o) => o.id === (isPro ? yDest : 'resonance'))?.label.toUpperCase() ??
+    'RESONANCE';
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
-      {/* Left: 9-Target Routing Bar + Dual Kaoss Modes + Stutter Ribbons */}
-      <div className="lg:col-span-5 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between">
+      {/* Left: 9-Target Routing Bar + Studio X/Y Destination Selectors + Dual Kaoss Modes + Stutter Ribbons */}
+      <div className="studio-module-fx lg:col-span-5 rounded-xl border border-white/10 bg-[#151821] p-2.5 flex flex-col justify-between gap-1.5">
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1">
             <span className="font-studio-mono text-[10px] font-bold uppercase text-rose-400">
               9-TARGET KAOSS ROUTING BAR
             </span>
@@ -209,12 +246,62 @@ export const KaossPadTab: React.FC<KaossPadTabProps> = ({
           </div>
         </div>
 
+        {/* Studio Mode Configurable X & Y Axis Destination Dropdowns */}
+        {isPro && (
+          <div className="grid grid-cols-2 gap-1.5 bg-black/40 p-1.5 rounded-lg border border-white/10 font-studio-mono text-[9.5px]">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-sky-300 font-bold">X-AXIS PARAMETER:</span>
+              <select
+                aria-label="Kaoss X-Axis Destination"
+                value={xDest}
+                onChange={(e) => {
+                  const nextX = e.target.value as KaossAxisDest;
+                  onUpdatePerformance?.((prev) => ({
+                    ...prev,
+                    kaossXDest: nextX,
+                  }));
+                }}
+                className="h-6 rounded bg-black/70 border border-white/15 px-1.5 text-white cursor-pointer"
+              >
+                {KAOSS_DEST_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                    {opt.id === 'cutoff' ? ' (Default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-rose-300 font-bold">Y-AXIS PARAMETER:</span>
+              <select
+                aria-label="Kaoss Y-Axis Destination"
+                value={yDest}
+                onChange={(e) => {
+                  const nextY = e.target.value as KaossAxisDest;
+                  onUpdatePerformance?.((prev) => ({
+                    ...prev,
+                    kaossYDest: nextY,
+                  }));
+                }}
+                className="h-6 rounded bg-black/70 border border-white/15 px-1.5 text-white cursor-pointer"
+              >
+                {KAOSS_DEST_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                    {opt.id === 'resonance' ? ' (Default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
         {/* Dual Kaoss Mode Switcher */}
         <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-lg border border-white/10">
           <button
             type="button"
             onClick={() => setKaossMode('fx')}
-            className={`flex-1 py-1.5 rounded font-studio-mono text-[10px] font-bold cursor-pointer ${
+            className={`flex-1 py-1 rounded font-studio-mono text-[10px] font-bold cursor-pointer ${
               kaossMode === 'fx'
                 ? 'bg-rose-500 text-black'
                 : 'text-gray-400 hover:text-white'
@@ -225,7 +312,7 @@ export const KaossPadTab: React.FC<KaossPadTabProps> = ({
           <button
             type="button"
             onClick={() => setKaossMode('synth')}
-            className={`flex-1 py-1.5 rounded font-studio-mono text-[10px] font-bold cursor-pointer ${
+            className={`flex-1 py-1 rounded font-studio-mono text-[10px] font-bold cursor-pointer ${
               kaossMode === 'synth'
                 ? 'bg-sky-400 text-black'
                 : 'text-gray-400 hover:text-white'
@@ -281,10 +368,10 @@ export const KaossPadTab: React.FC<KaossPadTabProps> = ({
           className="w-full h-full cursor-crosshair touch-none-control"
         />
 
-        <div className="pointer-events-none absolute top-2 left-3 right-3 flex items-center justify-between font-studio-mono text-[10px] text-gray-400">
+        <div className="pointer-events-none absolute top-2 left-3 right-3 flex items-center justify-between font-studio-mono text-[10px] text-gray-300">
           <span>
             {kaossMode === 'fx'
-              ? 'X: CUTOFF FREQ × Y: RESONANCE / DUB FEEDBACK'
+              ? `X: ${xLabel} × Y: ${yLabel}`
               : 'X: SCALE NOTE PITCH × Y: TIMBRE BRIGHTNESS'}
           </span>
           <span className="text-white font-bold">

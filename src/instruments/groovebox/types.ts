@@ -73,6 +73,18 @@ export type PunchInFxType =
   | 'sub-drop'
   | 'hpf-riser';
 
+export type RecordMode = 'both' | 'notes' | 'motion';
+
+export type KaossAxisDest =
+  | 'cutoff'
+  | 'resonance'
+  | 'fmDepth'
+  | 'delaySend'
+  | 'reverbSend'
+  | 'pan'
+  | 'pitch'
+  | 'decay';
+
 // Standardized Parameter Dot-Path Convention: e.g. "tracks.4.synth.filter.cutoff"
 export type ParameterDotPath = string;
 
@@ -86,6 +98,8 @@ export interface PerformanceSessionState {
   crossfaderPosition: number; // 0.0 (100% Deck A) to 1.0 (100% Deck B)
   crossfadeMode: CrossfadeCurveMode;
   activePunchInFx: PunchInFxType;
+  kaossXDest?: KaossAxisDest;
+  kaossYDest?: KaossAxisDest;
 }
 
 export type ModMatrixSource =
