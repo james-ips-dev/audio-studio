@@ -270,23 +270,31 @@ export const TransportBar: React.FC<TransportBarProps> = ({
           </button>
         </div>
 
-        {/* Groove / Swing Selector */}
-        <select
-          aria-label="Groove Template"
-          value={project.grooveTemplate}
-          onChange={(e) => {
-            const tpl = e.target.value;
-            const swingVal = GROOVE_TEMPLATES[tpl]?.swing ?? 0;
-            onGrooveChange(tpl, swingVal);
-          }}
-          className="hidden xl:block h-9 px-2 rounded-lg bg-black/45 border border-white/10 font-studio-mono text-[11px] text-gray-200 cursor-pointer"
+        {/* Groove / Swing Pocket Selector */}
+        <label
+          title="Groove / Swing Template: Shifts 16th-note micro-timing and pocket feel (Straight, MPC Swing, J-Dilla Drunken Hip-Hop, UK Garage Shuffle)"
+          className="hidden lg:flex items-center bg-black/45 rounded-lg border border-white/10 px-1.5 h-9 gap-1"
         >
-          {Object.keys(GROOVE_TEMPLATES).map((k) => (
-            <option key={k} value={k} className="bg-[#12151E]">
-              {GROOVE_TEMPLATES[k].label}
-            </option>
-          ))}
-        </select>
+          <span className="font-studio-mono text-[8px] font-bold text-amber-300 uppercase">
+            GROOVE
+          </span>
+          <select
+            aria-label="Groove Template"
+            value={project.grooveTemplate}
+            onChange={(e) => {
+              const tpl = e.target.value;
+              const swingVal = GROOVE_TEMPLATES[tpl]?.swing ?? 0;
+              onGrooveChange(tpl, swingVal);
+            }}
+            className="h-7 px-1 rounded bg-transparent font-studio-mono text-[10.5px] font-bold text-gray-200 cursor-pointer"
+          >
+            {Object.keys(GROOVE_TEMPLATES).map((k) => (
+              <option key={k} value={k} className="bg-[#12151E]">
+                {GROOVE_TEMPLATES[k].label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Center Group: PLAY / STUDIO Persona Switcher, Performance Strip & Key/Scale */}

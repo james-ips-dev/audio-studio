@@ -310,9 +310,14 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
   }, [engine, isPlaying]);
 
   const handleTriggerLiveAndRecord = useCallback(
-    (trackIndex: number, midiNotes: number[], velocity: number = 0.85) => {
+    (
+      trackIndex: number,
+      midiNotes: number[],
+      velocity: number = 0.85,
+      durationSec: number = 0.28
+    ) => {
       for (const n of midiNotes) {
-        engine.triggerLiveNote(trackIndex, n, velocity, 0.28);
+        engine.triggerLiveNote(trackIndex, n, velocity, durationSec);
       }
       if (
         isRecordingRef.current &&
@@ -324,9 +329,14 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
           const patId = prev.activePatternId;
           const pat = prev.patterns[patId];
           if (!pat) return prev;
+          const patBars = Math.max(1, pat.bars || 1);
           const nextTracks = pat.tracks.map((seq) => {
             if (seq.trackIndex !== trackIndex) return seq;
-            const localIdx = stepIdx % seq.lengthSteps;
+            const polyLen =
+              !seq.lengthSteps || seq.lengthSteps === 16
+                ? patBars * 16
+                : seq.lengthSteps;
+            const localIdx = stepIdx % polyLen;
             const nextSteps = seq.steps.map((s, idx) =>
               idx === localIdx
                 ? {
@@ -356,6 +366,111 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
     },
     [engine, isPlaying]
   );
+
+  // Shared Arpeggiator State & BPM-Synced Multi-Octave Clock (Shared between Pads & Arp and Kaoss Pad)
+  const [arpLatchedMidis, setArpLatchedMidis] = useState<number[]>([]);
+  const arpEnabled = project.performance.arpEnabled ?? false;
+  const arpDir = project.performance.arpDirection ?? 'up';
+  const arpRate = project.performance.arpRate ?? '1/16';
+  const arpOctaves = project.performance.arpOctaves ?? 2;
+  const arpPitchSemis = project.performance.arpPitchSemis ?? 0;
+
+  const arpLatchedRef = useRef<number[]>(arpLatchedMidis);
+  const arpDirRef = useRef(arpDir);
+  const arpOctavesRef = useRef(arpOctaves);
+  const arpPitchRef = useRef(arpPitchSemis);
+  const triggerLiveRef = useRef(handleTriggerLiveAndRecord);
+  const arpStepIdxRef = useRef<number>(0);
+  const arpWasRunningRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    arpLatchedRef.current = arpLatchedMidis;
+    arpDirRef.current = arpDir;
+    arpOctavesRef.current = arpOctaves;
+    arpPitchRef.current = arpPitchSemis;
+    triggerLiveRef.current = handleTriggerLiveAndRecord;
+  }, [
+    arpLatchedMidis,
+    arpDir,
+    arpOctaves,
+    arpPitchSemis,
+    handleTriggerLiveAndRecord,
+  ]);
+
+  const hasLatchedMidis = arpLatchedMidis.length > 0;
+
+  useEffect(() => {
+    if (!arpEnabled || !hasLatchedMidis) {
+      arpWasRunningRef.current = false;
+      arpStepIdxRef.current = 0;
+      return;
+    }
+
+    const quarterMs = (60 / Math.max(40, project.bpm)) * 1000;
+    const beatsPerStep =
+      arpRate === '1/4'
+        ? 1
+        : arpRate === '1/8'
+          ? 0.5
+          : arpRate === '1/8T'
+            ? 1 / 3
+            : arpRate === '1/16'
+              ? 0.25
+              : arpRate === '1/16T'
+                ? 1 / 6
+                : 0.125; // '1/32'
+    const stepMs = Math.max(35, quarterMs * beatsPerStep);
+    const gateSec = Math.max(0.06, (stepMs / 1000) * 0.82);
+
+    const fireNextArpNote = () => {
+      const basePool = arpLatchedRef.current;
+      if (basePool.length === 0) return;
+
+      const octaves = arpOctavesRef.current;
+      const pitchSemis = arpPitchRef.current;
+      const dir = arpDirRef.current;
+
+      const expanded: number[] = [];
+      for (let oct = 0; oct < octaves; oct++) {
+        for (const baseMidi of basePool) {
+          const m = Math.min(
+            108,
+            Math.max(24, baseMidi + oct * 12 + pitchSemis)
+          );
+          expanded.push(m);
+        }
+      }
+
+      const orderedPool =
+        dir === 'down'
+          ? [...expanded].reverse()
+          : dir === 'up-down' && expanded.length > 2
+            ? [...expanded, ...expanded.slice(1, -1).reverse()]
+            : expanded;
+
+      if (orderedPool.length === 0) return;
+      const note =
+        dir === 'random'
+          ? orderedPool[Math.floor(Math.random() * orderedPool.length)]
+          : orderedPool[arpStepIdxRef.current % orderedPool.length];
+      triggerLiveRef.current(
+        focusedTrackRef.current,
+        [note],
+        0.85,
+        gateSec
+      );
+      arpStepIdxRef.current++;
+    };
+
+    // Only fire immediately on initial start so sweeping Kaoss X-axis rate doesn't buzz
+    if (!arpWasRunningRef.current) {
+      arpWasRunningRef.current = true;
+      fireNextArpNote();
+    }
+
+    const timer = window.setInterval(fireNextArpNote, stepMs);
+    return () => window.clearInterval(timer);
+  }, [arpEnabled, hasLatchedMidis, arpRate, project.bpm]);
 
   // Scoped Desktop PC Keyboard Shortcuts & QWERTY Note Input (Section 5)
   useEffect(() => {
@@ -1026,6 +1141,14 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
               project={project}
               focusedTrack={focusedTrack}
               engine={engine}
+              arpLatchedMidis={arpLatchedMidis}
+              onSetArpLatchedMidis={setArpLatchedMidis}
+              onUpdatePerformance={(updater) =>
+                setProject((prev) => ({
+                  ...prev,
+                  performance: updater(prev.performance),
+                }))
+              }
               onTriggerPadNotes={handleTriggerLiveAndRecord}
               onUpdateTrackConfig={(
                 trackIndex: number,
@@ -1045,7 +1168,11 @@ export const GrooveboxRoot: React.FC<InstrumentComponentProps> = ({
             <KaossPadTab
               project={project}
               focusedTrackIndex={focusedTrackIndex}
+              isPlaying={isPlaying}
               engine={engine}
+              arpLatchedMidis={arpLatchedMidis}
+              onSetArpLatchedMidis={setArpLatchedMidis}
+              onSelectTrack={setFocusedTrackIndex}
               onTriggerKaossNote={(trkIdx, midi, vel) =>
                 handleTriggerLiveAndRecord(trkIdx, [midi], vel)
               }

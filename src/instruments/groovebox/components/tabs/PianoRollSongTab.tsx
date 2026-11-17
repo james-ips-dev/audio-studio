@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   getNoteGravity,
   getScaleNotes,
@@ -66,14 +66,54 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
   } | null>(null);
   const [activeVelStep, setActiveVelStep] = useState<number | null>(null);
   const [velFineMode, setVelFineMode] = useState<boolean>(false);
+  const [focusedOctaveShift, setFocusedOctaveShift] = useState<-1 | 0 | 1>(0);
+  const pianoRollScrollRef = useRef<HTMLDivElement | null>(null);
+  const normalOctaveTopRowRef = useRef<HTMLDivElement | null>(null);
 
-  // Folded Scale Grid rows (8 in-key pitches from high to low)
+  // 3-Octave Folded Scale Grid (Low Octave, Normal Octave, High Octave — 22 in-key pitches from high to low)
+  const normalBaseOctave = focusedTrack.index === 4 ? 2 : 4;
+  const lowBaseOctave = Math.max(1, normalBaseOctave - 1);
   const scalePitches = getScaleNotes(
     project.rootNote,
     project.scaleName,
-    focusedTrack.index === 4 ? 2 : 4,
-    8
+    lowBaseOctave,
+    22
   ).reverse();
+
+  // Normal scale pitches (middle octave) for visual highlighting & initial focus
+  const normalScaleSet = new Set(
+    getScaleNotes(project.rootNote, project.scaleName, normalBaseOctave, 8)
+  );
+
+  const scrollToOctaveZone = (shift: -1 | 0 | 1) => {
+    setFocusedOctaveShift(shift);
+    const container = pianoRollScrollRef.current;
+    if (!container) return;
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    if (shift === 1) {
+      container.scrollTop = 0;
+    } else if (shift === -1) {
+      container.scrollTop = maxScroll;
+    } else {
+      // Center on the Normal Scale (middle octave, rows 7..14 of 22)
+      if (normalOctaveTopRowRef.current) {
+        container.scrollTop = Math.max(
+          0,
+          normalOctaveTopRowRef.current.offsetTop - 4
+        );
+      } else {
+        container.scrollTop = Math.round(maxScroll * 0.5);
+      }
+    }
+  };
+
+  // Always start focused on the Normal Scale octave when opening Piano Roll or switching tracks
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      scrollToOctaveZone(0);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [focusedTrack.index, project.rootNote, project.scaleName]);
 
   const applyStepVelocity = (stepIdx: number, nextVel: number) => {
     const clamped = Number(Math.max(0.05, Math.min(1, nextVel)).toFixed(4));
@@ -131,6 +171,46 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
             >
               🪄 ANSWER ME
             </button>
+
+            {/* 3-Octave Range Quick Focus Switcher (Always starts focused on Normal Scale) */}
+            <div className="flex items-center gap-0.5 bg-black/50 p-0.5 rounded border border-white/10 font-studio-mono text-[9px]">
+              <button
+                type="button"
+                onClick={() => scrollToOctaveZone(1)}
+                title="Scroll to High Octave (+1 Oct)"
+                className={`px-1.5 py-0.5 rounded font-bold cursor-pointer ${
+                  focusedOctaveShift === 1
+                    ? 'bg-sky-400 text-black'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                ▲ +1 OCT
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToOctaveZone(0)}
+                title="Focus Normal Scale Octave (Default)"
+                className={`px-1.5 py-0.5 rounded font-bold cursor-pointer ${
+                  focusedOctaveShift === 0
+                    ? 'bg-emerald-400 text-black'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                ● NORMAL (OCT {normalBaseOctave})
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToOctaveZone(-1)}
+                title="Scroll to Low Octave (-1 Oct)"
+                className={`px-1.5 py-0.5 rounded font-bold cursor-pointer ${
+                  focusedOctaveShift === -1
+                    ? 'bg-sky-400 text-black'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                ▼ -1 OCT
+              </button>
+            </div>
           </div>
 
           {/* One-Tap Velocity Sculpting Tools */}
@@ -166,30 +246,45 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
           </div>
         </div>
 
-        {/* Folded 8-Row Scale Grid */}
-        <div className="flex-1 flex flex-col justify-between gap-0.5 my-1">
-          {scalePitches.map((midi) => {
+        {/* 3-Octave Folded Scale Grid (Scrollable, auto-focused on Normal Scale octave) */}
+        <div
+          ref={pianoRollScrollRef}
+          className="flex-1 min-h-[148px] max-h-[220px] overflow-y-auto flex flex-col gap-0.5 my-1 pr-1 relative"
+        >
+          {scalePitches.map((midi, rowIdx) => {
             const gravity = getNoteGravity(midi, project.rootNote);
+            const isNormalOctave = normalScaleSet.has(midi);
+            const isTopOfNormalOctave = rowIdx === 7;
             return (
               <div
                 key={midi}
-                className="grid grid-cols-[54px_1fr] gap-1 items-center h-4"
+                ref={isTopOfNormalOctave ? normalOctaveTopRowRef : undefined}
+                className={`grid grid-cols-[62px_1fr] gap-1 items-center h-[18px] shrink-0 ${
+                  isNormalOctave ? 'bg-white/[0.02]' : 'opacity-85'
+                }`}
               >
                 <span
-                  className={`font-studio-mono text-[9px] font-bold px-1 rounded truncate ${
+                  className={`font-studio-mono text-[9px] font-bold px-1 rounded truncate flex items-center justify-between ${
                     gravity === 'home'
                       ? 'text-emerald-300 bg-emerald-500/15'
                       : gravity === 'color'
                         ? 'text-sky-300 bg-sky-500/15'
                         : 'text-gray-400 bg-white/5'
-                  }`}
+                  } ${isNormalOctave ? 'border-l-2 border-emerald-400' : ''}`}
                 >
-                  {midiToNoteName(midi)}
+                  <span>{midiToNoteName(midi)}</span>
+                  {isNormalOctave && gravity === 'home' && (
+                    <span className="text-[7px] text-emerald-300">★</span>
+                  )}
                 </span>
 
                 <div className="grid grid-cols-16 gap-0.5 h-full">
                   {Array.from({ length: 16 }, (_, cIdx) => {
-                    const polyLen = seq?.lengthSteps || 16;
+                    const patBars = Math.max(1, activePattern?.bars || 1);
+                    const polyLen =
+                      !seq?.lengthSteps || seq.lengthSteps === 16
+                        ? patBars * 16
+                        : seq.lengthSteps;
                     const stepIdx = (barOffset + cIdx) % polyLen;
                     const step = seq?.steps[stepIdx];
                     const hasNote =
@@ -428,7 +523,7 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
         </div>
 
         {/* Docked Bottom Per-Note Visual Velocity Lane (With Shift+Drag & Shift+Scroll Fine Control) */}
-        <div className="grid grid-cols-[54px_1fr] gap-1 items-end pt-1 border-t border-white/10 h-11 relative">
+        <div className="grid grid-cols-[62px_1fr] gap-1 items-end pt-1 border-t border-white/10 h-11 relative">
           <div className="flex flex-col justify-between h-full py-0.5">
             <span className="font-studio-mono text-[8.5px] font-bold text-gray-400">
               VELOCITY
@@ -441,7 +536,12 @@ export const PianoRollSongTab: React.FC<PianoRollSongTabProps> = ({
           </div>
           <div className="grid grid-cols-16 gap-0.5 h-full items-end">
             {Array.from({ length: 16 }, (_, cIdx) => {
-              const stepIdx = (barOffset + cIdx) % (seq?.lengthSteps || 16);
+              const patBars = Math.max(1, activePattern?.bars || 1);
+              const polyLen =
+                !seq?.lengthSteps || seq.lengthSteps === 16
+                  ? patBars * 16
+                  : seq.lengthSteps;
+              const stepIdx = (barOffset + cIdx) % polyLen;
               const step = seq?.steps[stepIdx];
               const vel = step?.active ? step.velocity : 0.15;
               const isEditingThis = activeVelStep === stepIdx;

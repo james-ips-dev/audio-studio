@@ -146,6 +146,8 @@ export class GrooveboxAudioEngine {
   private schedulerTimer: number | null = null;
   private playheadTimeouts: Set<number> = new Set();
   private activeVoiceGains: Set<GainNode> = new Set();
+  private activeVoiceOscs: Set<OscillatorNode> = new Set();
+  private beatRepeatRate: '1/8' | '1/16' | '1/32' = '1/16';
   private nextStepTime: number = 0;
   private currentGlobalStep: number = 0;
   private loopCycleCount: number = 0;
@@ -217,40 +219,85 @@ export class GrooveboxAudioEngine {
     }
   }
 
-  public setPunchInFx(fx: PunchInFxType): void {
+  public setPunchInFx(
+    fx: PunchInFxType,
+    stutterRate: '1/8' | '1/16' | '1/32' = '1/16'
+  ): void {
     this.projectRef.performance.activePunchInFx = fx;
-    if (!this.audioCtx || !this.masterFilter || !this.reverbReturnGain) return;
-    const now = this.audioCtx.currentTime;
+    this.beatRepeatRate = stutterRate;
+    const ctx = this.ensureInitialized();
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+    if (!this.masterFilter || !this.reverbReturnGain) return;
+    const now = ctx.currentTime;
 
-    if (fx === 'hpf-riser') {
+    if (fx === 'tape-stop') {
+      // Vinyl/Tape Brake: rapid lowpass muffle + pitch-dive all active oscillators + brake spindown sweep
+      this.masterFilter.type = 'lowpass';
+      this.masterFilter.Q.setTargetAtTime(3.2, now, 0.03);
+      this.masterFilter.frequency.setTargetAtTime(110, now, 0.12);
+      for (const osc of this.activeVoiceOscs) {
+        try {
+          osc.detune.cancelScheduledValues(now);
+          osc.detune.setTargetAtTime(-2400, now, 0.14);
+        } catch {
+          // Ignore stopped oscs
+        }
+      }
+      this.triggerTapeStopSweep(now);
+    } else if (fx === 'beat-repeat') {
+      // Break any long sustain ties immediately so every track stutters on the grid
+      this.sustainedStepsRemaining = Array(8).fill(0);
       this.masterFilter.type = 'highpass';
-      this.masterFilter.frequency.setTargetAtTime(900, now, 0.08);
+      this.masterFilter.Q.setTargetAtTime(2.4, now, 0.03);
+      this.masterFilter.frequency.setTargetAtTime(210, now, 0.04);
+      if (this.delayFeedbackGain && this.delayReturnGain) {
+        this.delayFeedbackGain.gain.setTargetAtTime(0.68, now, 0.03);
+        this.delayReturnGain.gain.setTargetAtTime(0.55, now, 0.03);
+      }
+    } else if (fx === 'hpf-riser') {
+      this.masterFilter.type = 'highpass';
+      this.masterFilter.Q.setTargetAtTime(4.2, now, 0.04);
+      this.masterFilter.frequency.setValueAtTime(
+        Math.max(180, this.masterFilter.frequency.value),
+        now
+      );
+      this.masterFilter.frequency.exponentialRampToValueAtTime(2400, now + 1.2);
+      this.reverbReturnGain.gain.setTargetAtTime(0.82, now, 0.08);
     } else if (fx === 'dub-wash') {
-      this.reverbReturnGain.gain.setTargetAtTime(0.88, now, 0.06);
+      // Massive Dub Delay + Space Reverb Wash Out: feed all audible tracks into self-oscillating dub tank
+      this.masterFilter.type = 'highpass';
+      this.masterFilter.Q.setTargetAtTime(2.8, now, 0.04);
+      this.masterFilter.frequency.setTargetAtTime(340, now, 0.06);
+      this.reverbReturnGain.gain.setTargetAtTime(0.95, now, 0.04);
       if (this.delayFeedbackGain) {
-        this.delayFeedbackGain.gain.setTargetAtTime(0.82, now, 0.06);
+        this.delayFeedbackGain.gain.setTargetAtTime(0.88, now, 0.04);
+      }
+      if (this.delayReturnGain) {
+        this.delayReturnGain.gain.setTargetAtTime(0.88, now, 0.04);
+      }
+      for (let i = 0; i < 8; i++) {
+        const trk = this.projectRef.tracks[i];
+        const ch = this.trackChannels[i];
+        if (trk && ch && !trk.mixer.mute) {
+          ch.reverbSendGain.gain.setTargetAtTime(0.85, now, 0.03);
+          ch.delaySendGain.gain.setTargetAtTime(0.85, now, 0.03);
+        }
       }
     } else if (fx === 'sub-drop') {
       this.triggerSubDropImpact(now);
     } else {
-      this.masterFilter.type = 'lowpass';
-      this.masterFilter.frequency.setTargetAtTime(
-        this.projectRef.globalFx.masterFilterCutoff,
-        now,
-        0.05
-      );
-      this.reverbReturnGain.gain.setTargetAtTime(
-        this.projectRef.globalFx.reverbReturn,
-        now,
-        0.05
-      );
-      if (this.delayFeedbackGain) {
-        this.delayFeedbackGain.gain.setTargetAtTime(
-          this.projectRef.globalFx.delayFeedback,
-          now,
-          0.05
-        );
+      // Restore normal pitch on any remaining oscillators and resync mixer/master FX
+      for (const osc of this.activeVoiceOscs) {
+        try {
+          osc.detune.cancelScheduledValues(now);
+          osc.detune.setTargetAtTime(0, now, 0.04);
+        } catch {
+          // Ignore
+        }
       }
+      this.syncMixerAndMasterGraph();
     }
   }
 
@@ -569,6 +616,7 @@ export class GrooveboxAudioEngine {
 
       const audible = anySolo ? trk.mixer.solo : !trk.mixer.mute;
       const targetVol = audible ? trk.mixer.volume : 0.0;
+      const punchFx = p.performance.activePunchInFx;
 
       ch.faderGain.gain.setTargetAtTime(targetVol, now, 0.015);
       ch.panner.pan.setTargetAtTime(
@@ -577,12 +625,20 @@ export class GrooveboxAudioEngine {
         0.015
       );
       ch.reverbSendGain.gain.setTargetAtTime(
-        audible ? trk.mixer.reverbSend * 0.65 : 0,
+        audible
+          ? punchFx === 'dub-wash'
+            ? 0.85
+            : trk.mixer.reverbSend * 0.65
+          : 0,
         now,
         0.02
       );
       ch.delaySendGain.gain.setTargetAtTime(
-        audible ? trk.mixer.delaySend * 0.6 : 0,
+        audible
+          ? punchFx === 'dub-wash'
+            ? 0.85
+            : trk.mixer.delaySend * 0.6
+          : 0,
         now,
         0.02
       );
@@ -606,6 +662,8 @@ export class GrooveboxAudioEngine {
           ? 2
           : 1;
 
+    const punchFx = p.performance.activePunchInFx;
+
     if (this.delayNode) {
       this.delayNode.delayTime.setTargetAtTime(
         Math.min(1.8, stepSec * delayMult),
@@ -614,25 +672,31 @@ export class GrooveboxAudioEngine {
       );
     }
     if (this.delayFeedbackGain) {
-      this.delayFeedbackGain.gain.setTargetAtTime(
-        Math.min(0.88, p.globalFx.delayFeedback),
-        now,
-        0.03
-      );
+      const targetFb =
+        punchFx === 'dub-wash'
+          ? 0.88
+          : punchFx === 'beat-repeat'
+            ? 0.68
+            : Math.min(0.88, p.globalFx.delayFeedback);
+      this.delayFeedbackGain.gain.setTargetAtTime(targetFb, now, 0.03);
     }
     if (this.delayReturnGain) {
-      this.delayReturnGain.gain.setTargetAtTime(
-        p.globalFx.delayReturn,
-        now,
-        0.03
-      );
+      const targetDelayRet =
+        punchFx === 'dub-wash'
+          ? 0.88
+          : punchFx === 'beat-repeat'
+            ? Math.max(0.55, p.globalFx.delayReturn)
+            : p.globalFx.delayReturn;
+      this.delayReturnGain.gain.setTargetAtTime(targetDelayRet, now, 0.03);
     }
     if (this.reverbReturnGain && !this.isBuildDropHeld) {
-      this.reverbReturnGain.gain.setTargetAtTime(
-        p.globalFx.reverbReturn,
-        now,
-        0.03
-      );
+      const targetRevRet =
+        punchFx === 'dub-wash'
+          ? 0.95
+          : punchFx === 'hpf-riser'
+            ? 0.82
+            : p.globalFx.reverbReturn;
+      this.reverbReturnGain.gain.setTargetAtTime(targetRevRet, now, 0.03);
     }
     // Manage Eco vs Studio Reverb Paths & WaveShaper Oversampling
     const isEco = Boolean(p.ecoMode);
@@ -670,7 +734,12 @@ export class GrooveboxAudioEngine {
       this.masterTiltLow.gain.setTargetAtTime(-tiltDb, now, 0.03);
       this.masterTiltHigh.gain.setTargetAtTime(tiltDb, now, 0.03);
     }
-    if (this.masterFilter && !this.isBuildDropHeld && !this.kaossActive?.master) {
+    if (
+      this.masterFilter &&
+      !this.isBuildDropHeld &&
+      !this.kaossActive?.master &&
+      punchFx === 'none'
+    ) {
       this.masterFilter.type = 'lowpass';
       this.masterFilter.frequency.setTargetAtTime(
         p.globalFx.masterFilterCutoff,
@@ -753,8 +822,8 @@ export class GrooveboxAudioEngine {
     const totalPatternSteps = (activePat?.bars ?? 2) * 16;
 
     const punchFx = p.performance.activePunchInFx;
-    const tempoFactor = punchFx === 'tape-stop' ? 0.55 : 1.0;
-    const baseStepSec = 60 / Math.max(40, p.bpm * tempoFactor) / 4;
+    const tempoFactor = punchFx === 'tape-stop' ? 0.38 : 1.0;
+    const baseStepSec = 60 / Math.max(25, p.bpm * tempoFactor) / 4;
 
     // Apply swing to even/odd 16th steps
     const isOddStep = this.currentGlobalStep % 2 === 1;
@@ -851,27 +920,51 @@ export class GrooveboxAudioEngine {
       const seq = pat?.tracks[t];
       if (!seq) continue;
 
-      const polyLen = Math.max(1, seq.lengthSteps || 16);
+      const patBars = Math.max(1, pat?.bars || 1);
+      const polyLen =
+        !seq.lengthSteps || seq.lengthSteps === 16
+          ? patBars * 16
+          : Math.max(1, seq.lengthSteps);
       const localStep = globalStep % polyLen;
       trackStepPositions[t] = localStep;
 
+      const isBeatRepeat = p.performance.activePunchInFx === 'beat-repeat';
+
       // If an earlier step on this track is still sustaining across multiple steps,
-      // hold its continuous tie without retriggering on covered steps.
-      if (this.sustainedStepsRemaining[t] > 0) {
+      // hold its continuous tie without retriggering on covered steps (unless Beat Repeat is active).
+      if (!isBeatRepeat && this.sustainedStepsRemaining[t] > 0) {
         this.sustainedStepsRemaining[t]--;
         continue;
       }
+      if (isBeatRepeat) {
+        this.sustainedStepsRemaining[t] = 0;
+      }
 
-      const stepData: StepData | undefined = seq.steps[localStep];
+      let stepData: StepData | undefined = seq.steps[localStep];
+      // When Beat Repeat is held, if the current step is empty, repeat the nearest active step on this track
+      if (isBeatRepeat && (!stepData || !stepData.active)) {
+        for (let lookback = 1; lookback <= polyLen; lookback++) {
+          const candIdx = (localStep - lookback + polyLen) % polyLen;
+          const cand = seq.steps[candIdx];
+          if (cand && cand.active && cand.notes.length > 0) {
+            stepData = cand;
+            break;
+          }
+        }
+      }
+
       if (!stepData || !stepData.active) {
         this.prevStepTriggeredByTrack[t] = false;
         continue;
       }
 
-      // Check probability & condition
+      // Check probability & condition (Beat Repeat bypasses probability skips so the stutter is solid)
       const probPass =
-        stepData.probability >= 0.999 || Math.random() <= stepData.probability;
-      const condPass = this.evaluateCondition(stepData.condition, t);
+        isBeatRepeat ||
+        stepData.probability >= 0.999 ||
+        Math.random() <= stepData.probability;
+      const condPass =
+        isBeatRepeat || this.evaluateCondition(stepData.condition, t);
 
       if (!probPass || !condPass) {
         this.prevStepTriggeredByTrack[t] = false;
@@ -880,17 +973,39 @@ export class GrooveboxAudioEngine {
 
       this.prevStepTriggeredByTrack[t] = true;
 
-      const microOffsetSec = (stepData.microTiming || 0) * stepSec;
+      // Groove template micro-timing feel (Drunken Hip-Hop / UK Garage pocket)
+      let grooveMicroOffset = 0;
+      let grooveVelScale = 1.0;
+      if (p.grooveTemplate === 'Drunken Hip-Hop') {
+        if (t === 1) grooveMicroOffset = 0.14; // Laid-back J-Dilla snare
+        else if (t === 2) {
+          grooveMicroOffset = localStep % 2 === 1 ? 0.09 : -0.03;
+          grooveVelScale = localStep % 2 === 1 ? 0.82 : 1.05;
+        } else if (t === 4) grooveMicroOffset = 0.08; // Deep pocket bass
+      } else if (p.grooveTemplate === 'UK Garage') {
+        if (t === 2 || t === 3) {
+          grooveMicroOffset = localStep % 2 === 1 ? 0.07 : 0;
+          grooveVelScale = localStep % 4 === 2 ? 1.12 : 0.88;
+        }
+      }
+
+      const microOffsetSec =
+        ((stepData.microTiming || 0) + grooveMicroOffset) * stepSec;
       const triggerTime = Math.max(
         this.audioCtx?.currentTime ?? baseTime,
         baseTime + microOffsetSec
       );
 
       // Momentary Beat Repeat override or Step Ratchet subdivisions
-      const effectiveRatchet =
-        p.performance.activePunchInFx === 'beat-repeat'
-          ? 3
-          : stepData.ratchet || 1;
+      const repeatDiv =
+        this.beatRepeatRate === '1/8'
+          ? 2
+          : this.beatRepeatRate === '1/32'
+            ? 6
+            : 4;
+      const effectiveRatchet = isBeatRepeat
+        ? repeatDiv
+        : stepData.ratchet || 1;
 
       const maxDurSteps = Math.max(
         1,
@@ -928,7 +1043,7 @@ export class GrooveboxAudioEngine {
             noteEv,
             rTime + strumOffsetSec,
             gateDurationSec,
-            rVelScale * (stepData.velocity || 0.85),
+            rVelScale * grooveVelScale * (stepData.velocity || 0.85),
             stepData.pLocks
           );
         }
@@ -1025,25 +1140,87 @@ export class GrooveboxAudioEngine {
     }
   }
 
-  private triggerSubDropImpact(time: number): void {
+  private triggerTapeStopSweep(time: number): void {
     const ctx = this.ensureInitialized();
+    if (!this.isPlaying && this.masterGain) {
+      this.masterGain.gain.cancelScheduledValues(time);
+      this.masterGain.gain.setValueAtTime(
+        this.projectRef.globalFx.masterVolume,
+        time
+      );
+      this.masterGain.gain.setTargetAtTime(0.0, time + 0.65, 0.05);
+    }
     const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
     const vca = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(110, time);
-    osc.frequency.exponentialRampToValueAtTime(28, time + 0.95);
+    osc.type = 'sawtooth';
+    const startHz = 220 * Math.pow(2, this.projectRef.rootNote / 12);
+    osc.frequency.setValueAtTime(startHz, time);
+    osc.frequency.exponentialRampToValueAtTime(24, time + 0.52);
 
-    vca.gain.setValueAtTime(0.65, time);
-    vca.gain.exponentialRampToValueAtTime(0.0001, time + 1.0);
+    filter.type = 'lowpass';
+    filter.Q.setValueAtTime(3.5, time);
+    filter.frequency.setValueAtTime(1400, time);
+    filter.frequency.exponentialRampToValueAtTime(90, time + 0.5);
 
-    osc.connect(vca);
+    vca.gain.setValueAtTime(0.28, time);
+    vca.gain.exponentialRampToValueAtTime(0.0001, time + 0.55);
+
+    osc.connect(filter);
+    filter.connect(vca);
     if (this.masterCompressor) {
       vca.connect(this.masterCompressor);
     }
     osc.start(time);
-    osc.stop(time + 1.02);
+    osc.stop(time + 0.58);
     osc.onended = () => {
       osc.disconnect();
+      filter.disconnect();
+      vca.disconnect();
+    };
+  }
+
+  private triggerSubDropImpact(time: number): void {
+    const ctx = this.ensureInitialized();
+    if (!this.isPlaying && this.masterGain) {
+      this.masterGain.gain.cancelScheduledValues(time);
+      this.masterGain.gain.setValueAtTime(
+        this.projectRef.globalFx.masterVolume,
+        time
+      );
+      this.masterGain.gain.setTargetAtTime(0.0, time + 1.05, 0.05);
+    }
+    const osc = ctx.createOscillator();
+    const subHarm = ctx.createOscillator();
+    const vca = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(125, time);
+    osc.frequency.exponentialRampToValueAtTime(28, time + 0.95);
+
+    subHarm.type = 'triangle';
+    subHarm.frequency.setValueAtTime(62.5, time);
+    subHarm.frequency.exponentialRampToValueAtTime(28, time + 0.95);
+    const harmGain = ctx.createGain();
+    harmGain.gain.setValueAtTime(0.32, time);
+    harmGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.5);
+
+    vca.gain.setValueAtTime(0.85, time);
+    vca.gain.exponentialRampToValueAtTime(0.0001, time + 1.0);
+
+    osc.connect(vca);
+    subHarm.connect(harmGain);
+    harmGain.connect(vca);
+    if (this.masterCompressor) {
+      vca.connect(this.masterCompressor);
+    }
+    osc.start(time);
+    subHarm.start(time);
+    osc.stop(time + 1.02);
+    subHarm.stop(time + 0.55);
+    osc.onended = () => {
+      osc.disconnect();
+      subHarm.disconnect();
+      harmGain.disconnect();
       vca.disconnect();
     };
   }
@@ -1150,6 +1327,18 @@ export class GrooveboxAudioEngine {
 
     const isTied = (noteEvent.durationSteps || 1) > 1;
 
+    const isTapeStop =
+      this.projectRef.performance.activePunchInFx === 'tape-stop';
+    const registerOsc = (osc: OscillatorNode) => {
+      this.activeVoiceOscs.add(osc);
+      if (isTapeStop) {
+        osc.detune.linearRampToValueAtTime(
+          -2200,
+          startTime + Math.max(0.18, gateDurationSec)
+        );
+      }
+    };
+
     // Specialized Kick synthesis (Track 0)
     if (trackIndex === 0) {
       const kickOsc = ctx.createOscillator();
@@ -1157,6 +1346,7 @@ export class GrooveboxAudioEngine {
       const filter = ctx.createBiquadFilter();
       const vca = ctx.createGain();
       this.activeVoiceGains.add(vca);
+      registerOsc(kickOsc);
 
       kickOsc.type = 'sine';
       const punchMult = 1 + Math.max(0.2, synth.beginnerMacros.pitchEnv) * 3.2;
@@ -1209,6 +1399,7 @@ export class GrooveboxAudioEngine {
       clickOsc.stop(startTime + 0.03);
       kickOsc.onended = () => {
         this.activeVoiceGains.delete(vca);
+        this.activeVoiceOscs.delete(kickOsc);
         kickOsc.disconnect();
         clickOsc.disconnect();
         clickGain.disconnect();
@@ -1367,6 +1558,7 @@ export class GrooveboxAudioEngine {
         osc1Gain.connect(filter);
         osc1.start(startTime);
         osc1.stop(stopTime);
+        registerOsc(osc1);
         activeSourceNodes.push(osc1);
 
         // OSC 2 (Secondary + FM Modulator onto OSC 1 when u === 0)
@@ -1397,6 +1589,7 @@ export class GrooveboxAudioEngine {
 
           osc2.start(startTime);
           osc2.stop(stopTime);
+          registerOsc(osc2);
           activeSourceNodes.push(osc2);
         }
       }
@@ -1413,6 +1606,7 @@ export class GrooveboxAudioEngine {
       sub1Gain.connect(filter);
       sub1.start(startTime);
       sub1.stop(stopTime);
+      registerOsc(sub1);
       activeSourceNodes.push(sub1);
     }
 
@@ -1428,6 +1622,7 @@ export class GrooveboxAudioEngine {
       sub2Gain.connect(filter);
       sub2.start(startTime);
       sub2.stop(stopTime);
+      registerOsc(sub2);
       activeSourceNodes.push(sub2);
     }
 
@@ -1448,6 +1643,11 @@ export class GrooveboxAudioEngine {
     if (activeSourceNodes.length > 0) {
       activeSourceNodes[0].onended = () => {
         this.activeVoiceGains.delete(vca);
+        for (const node of activeSourceNodes) {
+          if (node instanceof OscillatorNode) {
+            this.activeVoiceOscs.delete(node);
+          }
+        }
         filter.disconnect();
         vca.disconnect();
       };

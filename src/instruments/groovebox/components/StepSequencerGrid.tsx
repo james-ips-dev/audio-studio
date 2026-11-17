@@ -477,7 +477,11 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
               {/* Right 16-Step Grid Row */}
               <div className="grid grid-cols-16 gap-1 h-7">
                 {Array.from({ length: 16 }, (_, cellIdx) => {
-                  const polyLen = seq?.lengthSteps || 16;
+                  const patBars = Math.max(1, activePattern?.bars || 1);
+                  const polyLen =
+                    !seq?.lengthSteps || seq.lengthSteps === 16
+                      ? patBars * 16
+                      : seq.lengthSteps;
                   const stepIdx = (barOffset + cellIdx) % polyLen;
                   const step = seq?.steps[stepIdx];
                   const active = Boolean(step?.active);
@@ -827,7 +831,10 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
           {isPro ? (
             <div className="flex items-center gap-2">
               {/* Trigger Probability */}
-              <label className="flex items-center gap-1">
+              <label
+                className="flex items-center gap-1"
+                title="Step Probability: Chance (10%–100%) that this step triggers each time the playhead passes it"
+              >
                 <span className="text-gray-400">PROB:</span>
                 <input
                   type="range"
@@ -851,7 +858,10 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
               </label>
 
               {/* Elektron Trig Condition */}
-              <label className="flex items-center gap-1">
+              <label
+                className="flex items-center gap-1"
+                title="Trig Condition: Rule for which loop cycle or state this step triggers on (e.g. 1:2 = 1st of every 2 loops, FILL = only when FILL/BUILD is held)"
+              >
                 <span className="text-gray-400">COND:</span>
                 <select
                   value={inspectedStepData.condition}
@@ -865,11 +875,23 @@ export const StepSequencerGrid: React.FC<StepSequencerGridProps> = ({
                   }}
                   className="bg-black/60 rounded border border-white/15 px-1 py-0.5 text-sky-300 font-bold cursor-pointer"
                 >
-                  {CONDITIONS.map((c) => (
-                    <option key={c} value={c} className="bg-[#12151E]">
-                      {c}
-                    </option>
-                  ))}
+                  {CONDITIONS.map((c) => {
+                    const desc =
+                      c === 'ALWAYS'
+                        ? 'ALWAYS (Every Loop)'
+                        : c === 'FILL'
+                          ? 'FILL (When FILL Held)'
+                          : c === 'PRE'
+                            ? 'PRE (If Prev Step Fired)'
+                            : c === '!PRE'
+                              ? '!PRE (If Prev Skipped)'
+                              : `${c} (Cycle ${c.replace(':', ' of ')})`;
+                    return (
+                      <option key={c} value={c} className="bg-[#12151E]">
+                        {desc}
+                      </option>
+                    );
+                  })}
                 </select>
               </label>
             </div>

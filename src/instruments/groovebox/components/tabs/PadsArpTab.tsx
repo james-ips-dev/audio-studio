@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { GrooveboxAudioEngine } from '../../audio/GrooveboxAudioEngine';
 import {
   buildVoiceLedChord,
@@ -7,12 +7,24 @@ import {
   midiToNoteName,
   ROOT_NOTE_NAMES,
 } from '../../presets/factoryPresets';
-import type { GrooveboxProject, TrackConfig } from '../../types';
+import type {
+  ArpDirection,
+  ArpRateDivision,
+  GrooveboxProject,
+  TrackConfig,
+} from '../../types';
 
 export interface PadsArpTabProps {
   project: GrooveboxProject;
   focusedTrack: TrackConfig;
   engine: GrooveboxAudioEngine;
+  arpLatchedMidis: number[];
+  onSetArpLatchedMidis: (notes: number[]) => void;
+  onUpdatePerformance: (
+    updater: (
+      prev: GrooveboxProject['performance']
+    ) => GrooveboxProject['performance']
+  ) => void;
   onTriggerPadNotes: (
     trackIndex: number,
     midiNotes: number[],
@@ -26,60 +38,46 @@ export interface PadsArpTabProps {
 
 type PadMode = 'scale' | 'chords' | 'drums';
 type ChordFlavor = 'triad' | '7th' | '9th' | 'sus4' | 'spread';
-type ArpDirection = 'up' | 'down' | 'up-down' | 'random';
+
+const ARP_RATE_OPTIONS: {
+  id: ArpRateDivision;
+  label: string;
+  beatsPerStep: number;
+}[] = [
+  { id: '1/4', label: '1/4 SYNC', beatsPerStep: 1 },
+  { id: '1/8', label: '1/8 SYNC', beatsPerStep: 0.5 },
+  { id: '1/8T', label: '1/8T TRIPLET', beatsPerStep: 1 / 3 },
+  { id: '1/16', label: '1/16 SYNC', beatsPerStep: 0.25 },
+  { id: '1/16T', label: '1/16T TRIPLET', beatsPerStep: 1 / 6 },
+  { id: '1/32', label: '1/32 FAST', beatsPerStep: 0.125 },
+];
 
 export const PadsArpTab: React.FC<PadsArpTabProps> = ({
   project,
   focusedTrack,
   engine,
+  arpLatchedMidis,
+  onSetArpLatchedMidis,
+  onUpdatePerformance,
   onTriggerPadNotes,
   onUpdateTrackConfig,
 }) => {
   const [padMode, setPadMode] = useState<PadMode>('scale');
   const [chordFlavor, setChordFlavor] = useState<ChordFlavor>('7th');
-  const [magicChordActive, setMagicChordActive] = useState(false);
+  const [magicChordHeld, setMagicChordHeld] = useState(false);
+  const [magicChordLocked, setMagicChordLocked] = useState(false);
+  const magicChordActive = magicChordHeld || magicChordLocked;
 
-  const [arpEnabled, setArpEnabled] = useState(false);
-  const [arpLatch, setArpLatch] = useState(false);
-  const [arpDir, setArpDir] = useState<ArpDirection>('up');
-  const [latchedMidis, setLatchedMidis] = useState<number[]>([]);
+  const arpEnabled = project.performance.arpEnabled ?? false;
+  const arpLatch = project.performance.arpLatch ?? false;
+  const arpDir: ArpDirection = project.performance.arpDirection ?? 'up';
+  const arpRate: ArpRateDivision = project.performance.arpRate ?? '1/16';
+  const arpOctaves: 1 | 2 | 3 = project.performance.arpOctaves ?? 2;
 
   const [isResampling, setIsResampling] = useState(false);
   const [hasResample, setHasResample] = useState(() =>
     engine.hasResampledAudio()
   );
-
-  // Built-In Arpeggiator clock loop
-  useEffect(() => {
-    if (!arpEnabled || latchedMidis.length === 0) return;
-    let idx = 0;
-    const stepMs = (60 / Math.max(40, project.bpm) / 4) * 1000;
-
-    const timer = window.setInterval(() => {
-      const pool =
-        arpDir === 'down'
-          ? [...latchedMidis].reverse()
-          : arpDir === 'random'
-            ? [
-                latchedMidis[
-                  Math.floor(Math.random() * latchedMidis.length)
-                ],
-              ]
-            : latchedMidis;
-      const note = pool[idx % pool.length];
-      onTriggerPadNotes(focusedTrack.index, [note], 0.85);
-      idx++;
-    }, stepMs);
-
-    return () => window.clearInterval(timer);
-  }, [
-    arpEnabled,
-    latchedMidis,
-    arpDir,
-    project.bpm,
-    focusedTrack.index,
-    onTriggerPadNotes,
-  ]);
 
   const scaleMidis = getScaleNotes(
     project.rootNote,
@@ -104,7 +102,8 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
       return;
     }
 
-    if (padMode === 'chords') {
+    // When Magic Chord is held/locked OR Chords mode is selected, build a voice-led chord
+    if (padMode === 'chords' || magicChordActive) {
       const chordNotes = buildVoiceLedChord(
         padIdx,
         project.rootNote,
@@ -114,7 +113,7 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
         focusedTrack.voiceLeading
       );
       if (arpEnabled) {
-        setLatchedMidis(chordNotes);
+        onSetArpLatchedMidis(chordNotes);
       } else {
         onTriggerPadNotes(focusedTrack.index, chordNotes, velocity);
       }
@@ -122,8 +121,15 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
     }
 
     const midi = scaleMidis[padIdx] ?? 60;
+    const thirdMidi = scaleMidis[(padIdx + 2) % scaleMidis.length] ?? midi + 4;
+    const fifthMidi = scaleMidis[(padIdx + 4) % scaleMidis.length] ?? midi + 7;
     if (arpEnabled) {
-      setLatchedMidis([midi, midi + 7, midi + 12]);
+      const baseTriad = [
+        midi,
+        thirdMidi < midi ? thirdMidi + 12 : thirdMidi,
+        fifthMidi < midi ? fifthMidi + 12 : fifthMidi,
+      ];
+      onSetArpLatchedMidis(baseTriad);
     } else {
       onTriggerPadNotes(focusedTrack.index, [midi], velocity);
     }
@@ -205,7 +211,7 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
                 onPointerDown={(e) => handlePadPress(idx, e)}
                 onPointerUp={() => {
                   if (arpEnabled && !arpLatch) {
-                    setLatchedMidis([]);
+                    onSetArpLatchedMidis([]);
                   }
                 }}
                 style={{
@@ -220,8 +226,8 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
                 <span className="font-studio-mono text-xs font-bold text-white">
                   {padMode === 'drums'
                     ? project.tracks[idx % 8]?.name
-                    : padMode === 'chords'
-                      ? `${midiToNoteName(midi)} ${chordFlavor.toUpperCase()}`
+                    : padMode === 'chords' || magicChordActive
+                      ? `${midiToNoteName(midi)} ${magicChordActive ? 'MAGIC' : chordFlavor.toUpperCase()}`
                       : midiToNoteName(midi)}
                 </span>
               </button>
@@ -276,61 +282,139 @@ export const PadsArpTab: React.FC<PadsArpTabProps> = ({
             ))}
           </div>
 
-          <button
-            type="button"
-            onPointerDown={() => setMagicChordActive(true)}
-            onPointerUp={() => setMagicChordActive(false)}
-            onPointerLeave={() => setMagicChordActive(false)}
-            className={`w-full py-1.5 rounded-lg font-studio-mono text-[11px] font-bold border transition-all cursor-pointer touch-none-control ${
-              magicChordActive
-                ? 'bg-fuchsia-400 text-black border-fuchsia-200 shadow-[0_0_15px_#E879F9]'
-                : 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/40 hover:bg-fuchsia-500/25'
-            }`}
-          >
-            ✨ HOLD FOR MAGIC CHORD (MODAL BORROW)
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onPointerDown={() => setMagicChordHeld(true)}
+              onPointerUp={() => setMagicChordHeld(false)}
+              onPointerLeave={() => setMagicChordHeld(false)}
+              title="Hold while pressing any pad (or click LOCK) to borrow lush parallel-mode chords (Modal Interchange)"
+              className={`flex-1 py-1.5 px-2 rounded-lg font-studio-mono text-[10px] font-bold border transition-all cursor-pointer touch-none-control ${
+                magicChordActive
+                  ? 'bg-fuchsia-400 text-black border-fuchsia-200 shadow-[0_0_15px_#E879F9]'
+                  : 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/40 hover:bg-fuchsia-500/25'
+              }`}
+            >
+              ✨ HOLD FOR MAGIC CHORD (MODAL BORROW)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMagicChordLocked((v) => !v)}
+              title="Lock Magic Chord on so you can play modal-borrowed chords with one hand"
+              className={`px-2 py-1.5 rounded-lg font-studio-mono text-[10px] font-bold border transition-all cursor-pointer ${
+                magicChordLocked
+                  ? 'bg-fuchsia-400 text-black border-fuchsia-200'
+                  : 'bg-white/5 text-fuchsia-200 border-white/15 hover:bg-white/10'
+              }`}
+            >
+              {magicChordLocked ? '🔒 LOCKED' : 'LOCK'}
+            </button>
+          </div>
         </div>
 
-        {/* Built-In Arpeggiator (`ARP` + `LATCH`) */}
-        <div className="bg-black/35 p-2 rounded-lg border border-white/5 flex items-center justify-between gap-1.5 font-studio-mono text-[10px]">
-          <button
-            type="button"
-            onClick={() => {
-              setArpEnabled((v) => !v);
-              if (arpEnabled) setLatchedMidis([]);
-            }}
-            className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
-              arpEnabled
-                ? 'bg-sky-400 text-black'
-                : 'bg-white/10 text-gray-300'
-            }`}
-          >
-            ARP {arpEnabled ? 'ON' : 'OFF'}
-          </button>
+        {/* Built-In Arpeggiator (`ARP` + `LATCH` + BPM-Synced `RATE` + `1-3 OCTAVES` + `DIR`) */}
+        <div className="bg-black/35 p-2 rounded-lg border border-white/5 space-y-1.5 font-studio-mono text-[10px]">
+          <div className="flex items-center justify-between gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !arpEnabled;
+                onUpdatePerformance((prev) => ({
+                  ...prev,
+                  arpEnabled: next,
+                }));
+                if (!next) onSetArpLatchedMidis([]);
+              }}
+              className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
+                arpEnabled
+                  ? 'bg-sky-400 text-black shadow-[0_0_10px_rgba(56,189,248,0.45)]'
+                  : 'bg-white/10 text-gray-300'
+              }`}
+            >
+              ARP {arpEnabled ? 'ON' : 'OFF'}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setArpLatch((v) => !v)}
-            className={`px-2 py-1 rounded font-bold cursor-pointer ${
-              arpLatch
-                ? 'bg-amber-400 text-black'
-                : 'bg-white/10 text-gray-300'
-            }`}
-          >
-            LATCH
-          </button>
+            <button
+              type="button"
+              onClick={() =>
+                onUpdatePerformance((prev) => ({
+                  ...prev,
+                  arpLatch: !arpLatch,
+                }))
+              }
+              className={`px-2 py-1 rounded font-bold cursor-pointer ${
+                arpLatch
+                  ? 'bg-amber-400 text-black'
+                  : 'bg-white/10 text-gray-300'
+              }`}
+            >
+              LATCH {arpLatch && arpLatchedMidis.length > 0 ? `(${arpLatchedMidis.length})` : ''}
+            </button>
 
-          <select
-            aria-label="Arp Direction"
-            value={arpDir}
-            onChange={(e) => setArpDir(e.target.value as ArpDirection)}
-            className="bg-black/60 text-white rounded border border-white/15 px-1.5 py-1 cursor-pointer"
-          >
-            <option value="up" className="bg-[#12151E]">UP</option>
-            <option value="down" className="bg-[#12151E]">DOWN</option>
-            <option value="up-down" className="bg-[#12151E]">UP/DOWN</option>
-            <option value="random" className="bg-[#12151E]">RANDOM</option>
-          </select>
+            <select
+              aria-label="Arp Direction"
+              value={arpDir}
+              onChange={(e) => {
+                const arpDirection = e.target.value as ArpDirection;
+                onUpdatePerformance((prev) => ({ ...prev, arpDirection }));
+              }}
+              className="bg-black/60 text-white rounded border border-white/15 px-1.5 py-1 cursor-pointer"
+            >
+              <option value="up" className="bg-[#12151E]">UP</option>
+              <option value="down" className="bg-[#12151E]">DOWN</option>
+              <option value="up-down" className="bg-[#12151E]">UP/DOWN</option>
+              <option value="random" className="bg-[#12151E]">RANDOM</option>
+            </select>
+          </div>
+
+          {/* Row 2: BPM-Synced Arp Speed Division & Multi-Octave Range (1-3 Octaves) */}
+          <div className="flex items-center justify-between gap-1.5 pt-0.5">
+            <label className="flex items-center gap-1 flex-1">
+              <span className="text-sky-300 font-bold text-[9px]">SPEED:</span>
+              <select
+                aria-label="Arp Synced Rate"
+                value={arpRate}
+                onChange={(e) => {
+                  const nextRate = e.target.value as ArpRateDivision;
+                  onUpdatePerformance((prev) => ({
+                    ...prev,
+                    arpRate: nextRate,
+                  }));
+                }}
+                title="BPM-Synced Arpeggiator Speed Subdivision"
+                className="flex-1 bg-black/60 text-sky-200 rounded border border-sky-500/30 px-1.5 py-0.5 text-[9.5px] font-bold cursor-pointer"
+              >
+                {ARP_RATE_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id} className="bg-[#12151E]">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex items-center gap-0.5 bg-black/50 p-0.5 rounded border border-white/10">
+              {([1, 2, 3] as const).map((oct) => (
+                <button
+                  key={oct}
+                  type="button"
+                  onClick={() =>
+                    onUpdatePerformance((prev) => ({
+                      ...prev,
+                      arpOctaves: oct,
+                    }))
+                  }
+                  title={`Arpeggiate across ${oct} octave${oct > 1 ? 's' : ''}`}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer ${
+                    arpOctaves === oct
+                      ? 'bg-sky-400 text-black'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {oct} OCT
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Internal Live Resampler Pad */}

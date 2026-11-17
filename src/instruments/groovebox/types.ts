@@ -75,6 +75,16 @@ export type PunchInFxType =
 
 export type RecordMode = 'both' | 'notes' | 'motion';
 
+export type ArpRateDivision =
+  | '1/4'
+  | '1/8'
+  | '1/8T'
+  | '1/16'
+  | '1/16T'
+  | '1/32';
+
+export type ArpDirection = 'up' | 'down' | 'up-down' | 'random';
+
 export type KaossAxisDest =
   | 'cutoff'
   | 'resonance'
@@ -83,7 +93,9 @@ export type KaossAxisDest =
   | 'reverbSend'
   | 'pan'
   | 'pitch'
-  | 'decay';
+  | 'decay'
+  | 'arpRate'
+  | 'arpPitch';
 
 // Standardized Parameter Dot-Path Convention: e.g. "tracks.4.synth.filter.cutoff"
 export type ParameterDotPath = string;
@@ -100,6 +112,12 @@ export interface PerformanceSessionState {
   activePunchInFx: PunchInFxType;
   kaossXDest?: KaossAxisDest;
   kaossYDest?: KaossAxisDest;
+  arpEnabled?: boolean;
+  arpLatch?: boolean;
+  arpDirection?: ArpDirection;
+  arpRate?: ArpRateDivision;
+  arpOctaves?: 1 | 2 | 3;
+  arpPitchSemis?: number;
 }
 
 export type ModMatrixSource =

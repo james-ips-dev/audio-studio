@@ -150,31 +150,43 @@ export function buildVoiceLedChord(
   voiceLeading: boolean = true
 ): number[] {
   const scaleNotes = getScaleNotes(rootNote, scaleName, 3, 24);
-  const degree = padIndex % 7;
+  const degree = padIndex % 10;
   const rootMidi = scaleNotes[degree];
-  const thirdMidi = scaleNotes[degree + 2] + (magicChord ? 1 : 0);
+  const rawThird = scaleNotes[degree + 2];
+  const thirdInterval = (((rawThird - rootMidi) % 12) + 12) % 12;
+  // Modal Borrow: flip minor 3rd (3st) <-> major 3rd (4st) for parallel modal interchange
+  const borrowedThird =
+    thirdInterval === 3 ? rootMidi + 4 : rootMidi + 3;
+  const thirdMidi = magicChord ? borrowedThird : rawThird;
   const fifthMidi = scaleNotes[degree + 4];
-  const seventhMidi = scaleNotes[degree + 6];
-  const ninthMidi = scaleNotes[degree + 8];
+  const seventhMidi = magicChord
+    ? rootMidi + (thirdInterval === 3 ? 10 : 11) // Dominant 7th or Maj7 borrowed color
+    : scaleNotes[degree + 6];
+  const ninthMidi = magicChord ? rootMidi + 14 : scaleNotes[degree + 8];
 
   let raw: number[];
-  switch (chordType) {
-    case 'triad':
-      raw = [rootMidi, thirdMidi, fifthMidi];
-      break;
-    case 'sus4':
-      raw = [rootMidi, scaleNotes[degree + 3], fifthMidi];
-      break;
-    case '9th':
-      raw = [rootMidi, thirdMidi, fifthMidi, seventhMidi, ninthMidi];
-      break;
-    case 'spread':
-      raw = [rootMidi - 12, fifthMidi, thirdMidi + 12, seventhMidi];
-      break;
-    case '7th':
-    default:
-      raw = [rootMidi, thirdMidi, fifthMidi, seventhMidi];
-      break;
+  if (magicChord) {
+    // Lush modal-borrowed voicing with sub-octave root, borrowed 3rd, 5th, 7th, and 9th
+    raw = [rootMidi - 12, rootMidi, thirdMidi, fifthMidi, seventhMidi, ninthMidi];
+  } else {
+    switch (chordType) {
+      case 'triad':
+        raw = [rootMidi, thirdMidi, fifthMidi];
+        break;
+      case 'sus4':
+        raw = [rootMidi, scaleNotes[degree + 3], fifthMidi];
+        break;
+      case '9th':
+        raw = [rootMidi, thirdMidi, fifthMidi, seventhMidi, ninthMidi];
+        break;
+      case 'spread':
+        raw = [rootMidi - 12, fifthMidi, thirdMidi + 12, seventhMidi];
+        break;
+      case '7th':
+      default:
+        raw = [rootMidi, thirdMidi, fifthMidi, seventhMidi];
+        break;
+    }
   }
 
   if (!voiceLeading) return raw;
@@ -913,6 +925,9 @@ export function applyAnswerMeCoPlay(
     trackIndex === 4 ? 2 : 4,
     14
   );
+  // Use a rotating harmonic offset so repeated clicks generate fresh Call & Response answers
+  const variationShift = Math.floor(Math.random() * 4) + 1;
+
   const nextTracks = pattern.tracks.map((trk) => {
     if (trk.trackIndex !== trackIndex) return trk;
     const nextSteps = trk.steps.map((s) => ({
@@ -920,11 +935,11 @@ export function applyAnswerMeCoPlay(
       notes: s.notes.map((n) => ({ ...n })),
     }));
 
-    // Collect active steps in Bar 1 (0..15)
-    const callSteps: { stepOffset: number; midi: number; dur: number }[] = [];
-    for (let i = 0; i < 16; i++) {
+    // Collect active Call steps in the first half of Bar 1 (0..7) or full Bar 1 (0..15)
+    const firstHalfSteps: { stepOffset: number; midi: number; dur: number }[] = [];
+    for (let i = 0; i < 8; i++) {
       if (nextSteps[i].active && nextSteps[i].notes.length > 0) {
-        callSteps.push({
+        firstHalfSteps.push({
           stepOffset: i,
           midi: nextSteps[i].notes[0].midiNote,
           dur: nextSteps[i].notes[0].durationSteps,
@@ -932,47 +947,85 @@ export function applyAnswerMeCoPlay(
       }
     }
 
-    // Clear Bar 2 (16..31)
-    for (let i = 16; i < 32; i++) {
+    // Clear Bar 1 second half (8..15) and Bar 2 (16..31) to write a complementary Answer
+    for (let i = 8; i < 32; i++) {
       nextSteps[i].active = false;
     }
 
-    if (callSteps.length === 0) {
-      // Seed a friendly Call & Response if Bar 1 was empty
-      const seedOffsets = [0, 3, 6, 10, 16, 19, 22, 28];
-      seedOffsets.forEach((st, idx) => {
-        const isLast = idx === seedOffsets.length - 1;
-        const note = isLast
-          ? scalePool[0]
-          : scalePool[(idx * 2 + 1) % 6];
+    if (firstHalfSteps.length === 0) {
+      // Seed a friendly Call (0..7) & Response (8..15 and 16..31) if Bar 1 was empty
+      const callOffsets = [0, 3, 6];
+      callOffsets.forEach((st, idx) => {
+        const note = scalePool[(idx * 2) % 7];
         nextSteps[st].active = true;
+        nextSteps[st].velocity = 0.85;
         nextSteps[st].notes = [
           {
             midiNote: note,
             velocity: 0.85,
-            durationSteps: isLast ? 4 : 2,
+            durationSteps: 2,
             glide: false,
+          },
+        ];
+      });
+      const respOffsets = [8, 11, 14, 16, 19, 22, 26, 28];
+      respOffsets.forEach((st, idx) => {
+        const isLastInBar = st === 14 || st === 28;
+        const note = isLastInBar
+          ? scalePool[0]
+          : scalePool[(idx + variationShift) % 7];
+        nextSteps[st].active = true;
+        nextSteps[st].velocity = 0.86;
+        nextSteps[st].notes = [
+          {
+            midiNote: note,
+            velocity: 0.86,
+            durationSteps: isLastInBar ? 2 : 1,
+            glide: trackIndex === 4 && idx % 2 === 1,
           },
         ];
       });
     } else {
-      callSteps.forEach((item, idx) => {
-        const isFinal = idx === callSteps.length - 1;
-        const targetStep = Math.min(31, 16 + item.stepOffset);
-        const answerMidi = isFinal
-          ? scalePool[0] // Resolve onto Home root note
-          : scalePool[(idx + 3) % 7];
-        nextSteps[targetStep].active = true;
-        nextSteps[targetStep].velocity = 0.86;
-        nextSteps[targetStep].notes = [
+      // Write an immediate Half-Bar Answer into steps 8..15 (visible on Bar 1!)
+      firstHalfSteps.forEach((item, idx) => {
+        const isFinal = idx === firstHalfSteps.length - 1;
+        const targetBar1Step = Math.min(15, 8 + item.stepOffset);
+        const bar1AnswerMidi = isFinal
+          ? scalePool[4] // Half-cadence on 5th at end of Bar 1
+          : scalePool[(idx + variationShift + 2) % 7];
+        nextSteps[targetBar1Step].active = true;
+        nextSteps[targetBar1Step].velocity = 0.84;
+        nextSteps[targetBar1Step].notes = [
           {
-            midiNote: answerMidi,
-            velocity: 0.86,
-            durationSteps: isFinal ? Math.max(2, item.dur) : item.dur,
-            glide: false,
+            midiNote: bar1AnswerMidi,
+            velocity: 0.84,
+            durationSteps: item.dur,
+            glide: trackIndex === 4 && isFinal,
           },
         ];
       });
+
+      // Write a full 2-Bar Resolved Answer into Bar 2 (steps 16..31) resolving onto Root
+      for (let i = 0; i < 16; i++) {
+        if (nextSteps[i].active && nextSteps[i].notes.length > 0) {
+          const srcNote = nextSteps[i].notes[0];
+          const targetStep = 16 + i;
+          const isBar2Final = i >= 12;
+          const answerMidi = isBar2Final
+            ? scalePool[0] // Authentic cadence resolving onto Home Root
+            : scalePool[(i + variationShift) % 7];
+          nextSteps[targetStep].active = true;
+          nextSteps[targetStep].velocity = 0.88;
+          nextSteps[targetStep].notes = [
+            {
+              midiNote: answerMidi,
+              velocity: 0.88,
+              durationSteps: isBar2Final ? Math.max(2, srcNote.durationSteps) : srcNote.durationSteps,
+              glide: srcNote.glide,
+            },
+          ];
+        }
+      }
     }
 
     return {
